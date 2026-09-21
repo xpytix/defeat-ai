@@ -9,7 +9,7 @@ const activeTab = ref<'boss' | 'characters'>('boss');
 const toastMessage = ref<string | null>(null);
 
 // User Token Balance (Earned from Daily Strikes & Raid Contributions)
-const userTokens = ref(40); // 2 strikes demo
+const userTokens = ref(40);
 
 // Game State
 const currentBossLevel = ref(1);
@@ -109,15 +109,15 @@ const handleHit = (type: 'free' | 'power') => {
 </script>
 
 <template>
-  <div class="h-[100dvh] max-h-[100dvh] w-screen overflow-hidden flex flex-col bg-[#07070A] text-white font-sans select-none relative">
+  <div class="h-[100dvh] max-h-[100dvh] w-screen overflow-hidden flex flex-col bg-black text-white font-sans select-none relative">
     
     <!-- Top Ambient Glow -->
-    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-80 h-32 bg-rose-600/10 rounded-full blur-[80px] pointer-events-none -z-10" />
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-80 h-32 bg-cyan-500/10 rounded-full blur-[90px] pointer-events-none -z-10" />
 
     <!-- Sleek Minimal Floating Toast -->
     <transition name="fade">
       <div v-if="toastMessage" class="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-        <div class="px-4 py-2 bg-[#12121A]/95 border border-white/10 rounded-full shadow-2xl backdrop-blur-xl text-center text-xs font-mono font-bold tracking-wider text-zinc-200">
+        <div class="px-4 py-2 bg-zinc-900/95 border border-white/10 rounded-full shadow-2xl backdrop-blur-xl text-center text-xs font-mono font-bold tracking-wider text-zinc-200">
           {{ toastMessage }}
         </div>
       </div>

@@ -68,14 +68,14 @@ onUnmounted(() => {
   if (countdownInterval) clearInterval(countdownInterval);
 });
 
-// Interactive 3D Parallax Tilt
+// Interactive 3D Parallax Tilt on Touch/Move
 const handlePointerMove = (e: MouseEvent | TouchEvent) => {
   const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
   const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
   const halfW = window.innerWidth / 2;
   const halfH = window.innerHeight / 2;
-  tiltX.value = Math.max(-10, Math.min(10, ((clientY - halfH) / halfH) * -10));
-  tiltY.value = Math.max(-10, Math.min(10, ((clientX - halfW) / halfW) * 10));
+  tiltX.value = Math.max(-8, Math.min(8, ((clientY - halfH) / halfH) * -8));
+  tiltY.value = Math.max(-8, Math.min(8, ((clientX - halfW) / halfW) * 8));
 };
 
 const resetTilt = () => {
@@ -88,11 +88,11 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
   isShaking.value = true;
   setTimeout(() => {
     isShaking.value = false;
-  }, 250);
+  }, 220);
 
   const id = Date.now() + Math.random();
   let clientX = window.innerWidth / 2;
-  let clientY = window.innerHeight / 2 - 40;
+  let clientY = window.innerHeight / 2 - 50;
 
   if (event) {
     if ('touches' in event && event.touches.length > 0) {
@@ -106,7 +106,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
   floatingDamages.value.push({
     id,
-    value: type === 'power' ? '-1 CRIT (+20 $HVAI)' : '-1 HP (+20 $HVAI)',
+    value: type === 'power' ? '-1 CRIT (+20)' : '-1 HP (+20)',
     x: clientX + (Math.random() * 40 - 20),
     y: clientY - 30
   });
@@ -118,14 +118,14 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
   emit('hit', type);
 
   if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-    navigator.vibrate(type === 'power' ? [25, 40, 25] : 25);
+    navigator.vibrate(type === 'power' ? [25, 40, 25] : 20);
   }
 };
 </script>
 
 <template>
   <div 
-    class="flex-1 flex flex-col justify-between items-center px-4 pt-1 pb-24 max-w-sm mx-auto w-full select-none"
+    class="flex-1 flex flex-col justify-between items-center px-4 pt-1 pb-24 max-w-md mx-auto w-full select-none"
     @mousemove="handlePointerMove"
     @touchmove="handlePointerMove"
     @mouseleave="resetTilt"
@@ -133,15 +133,15 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
   >
     
     <!-- TOP MINIMAL STATS & WALLET -->
-    <div class="w-full flex items-center justify-between text-[11px] font-mono tracking-wider text-zinc-500 pt-1">
+    <div class="w-full flex items-center justify-between text-[11px] font-mono tracking-wider text-zinc-500 pt-1 px-2">
       <div class="flex items-center gap-2">
-        <span class="text-zinc-300 font-black">LVL {{ String(level).padStart(2, '0') }}</span>
+        <span class="text-zinc-200 font-black">LVL {{ String(level).padStart(2, '0') }}</span>
         <span class="text-zinc-600">/</span>
         <span class="uppercase tracking-widest text-[10px] text-zinc-400 font-semibold">{{ bossName }}</span>
       </div>
 
       <!-- User Token Balance -->
-      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/5 text-amber-400 font-bold">
+      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/5 text-amber-400 font-bold">
         <Coins class="w-3 h-3 text-amber-400" />
         <span class="text-[11px]">{{ userTokens.toLocaleString() }}</span>
         <span class="text-[9px] text-zinc-500">$HVAI</span>
@@ -149,68 +149,66 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
     </div>
 
     <!-- SPECTATOR & ATTACKER ICONS BAR -->
-    <div class="w-full flex items-center justify-center gap-6 mt-2 text-[11px] font-mono text-zinc-500">
+    <div class="w-full flex items-center justify-center gap-6 mt-1 text-[11px] font-mono text-zinc-500">
       <div class="flex items-center gap-1.5 hover:text-zinc-400 transition-colors">
         <Eye class="w-3.5 h-3.5 text-zinc-400" />
         <span>{{ spectatorCount }}</span>
       </div>
-      <div class="w-1 h-1 rounded-full bg-zinc-700"></div>
+      <div class="w-1 h-1 rounded-full bg-zinc-800"></div>
       <div class="flex items-center gap-1.5 hover:text-rose-400 transition-colors">
         <Swords class="w-3.5 h-3.5 text-rose-500" />
         <span class="text-zinc-300">{{ activeAttackerCount }} attacking</span>
       </div>
     </div>
 
-    <!-- 3D CENTERPIECE ARENA -->
-    <div class="relative flex-1 flex flex-col items-center justify-center my-auto w-full">
+    <!-- 3D CENTERPIECE ARENA: MASSIVE BOSS WITHOUT CARD/STICKER BORDER -->
+    <div class="relative flex-1 flex flex-col items-center justify-center my-auto w-full overflow-visible">
       
-      <!-- Ambient Backlight -->
+      <!-- Subtle Backlight Glow -->
       <div 
-        class="absolute w-72 h-72 rounded-full blur-[100px] pointer-events-none transition-all duration-700 -z-10"
-        :class="hpPercent > 30 ? 'bg-rose-600/20' : 'bg-red-600/30'"
+        class="absolute w-80 h-80 rounded-full blur-[110px] pointer-events-none transition-all duration-700 -z-10"
+        :class="hpPercent > 30 ? 'bg-cyan-500/10' : 'bg-red-500/15'"
       />
 
       <!-- Floating Damage Numbers -->
       <div 
         v-for="d in floatingDamages" 
         :key="d.id"
-        class="fixed z-50 pointer-events-none font-mono font-black text-lg animate-float-damage"
-        :class="d.value.includes('CRIT') ? 'text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.9)]' : 'text-rose-500 drop-shadow-[0_0_12px_rgba(244,63,94,0.9)]'"
+        class="fixed z-50 pointer-events-none font-mono font-black text-2xl animate-float-damage"
+        :class="d.value.includes('CRIT') ? 'text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.9)]' : 'text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.9)]'"
         :style="{ left: `${d.x}px`, top: `${d.y}px` }"
       >
         {{ d.value }}
       </div>
 
-      <!-- Large 3D Character Model (Front-Facing Bust with Shoulders & Parallax) -->
+      <!-- Seamless 3D Boss Character Model (No card border, full-bleed presence) -->
       <div 
         @click="freeHitAvailable ? triggerHit('free', $event) : triggerHit('power', $event)"
-        class="relative w-72 sm:w-80 h-76 sm:h-84 cursor-pointer flex items-center justify-center transition-transform duration-100 ease-out active:scale-95"
+        class="relative w-full max-w-[340px] sm:max-w-[380px] h-[360px] sm:h-[420px] cursor-pointer flex items-center justify-center transition-transform duration-100 ease-out active:scale-95"
         :class="{ 'animate-shake': isShaking }"
         :style="{
-          transform: `perspective(900px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,
+          transform: `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,
         }"
       >
-        <div class="relative w-full h-full rounded-3xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.95)] border border-white/10 bg-black flex items-center justify-center">
+        <!-- The 3D Boss Image - Pure seamless blend into black void -->
+        <div class="relative w-full h-full flex items-center justify-center overflow-visible [mask-image:radial-gradient(circle_at_center,black_75%,transparent_100%)]">
           <img 
             src="/bosses/boss_1.jpg" 
-            alt="AI Boss 3D Bust" 
-            class="w-full h-full object-cover object-top select-none pointer-events-none transition-all duration-300 animate-pulse-slow"
+            alt="AI Boss 3D" 
+            class="w-full h-full object-contain select-none pointer-events-none transition-all duration-300 animate-pulse-slow"
             :class="{ 'brightness-125 filter contrast-125 scale-105': isShaking }"
           />
 
           <!-- Red Hit Flash Overlay -->
           <div 
             v-if="isShaking"
-            class="absolute inset-0 bg-rose-600/30 backdrop-blur-[1px] pointer-events-none transition-opacity"
+            class="absolute inset-0 bg-rose-600/20 pointer-events-none transition-opacity rounded-full blur-xl"
           />
-
-          <!-- Subtle Holographic Vignette at bottom for seamless blend -->
-          <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none" />
         </div>
       </div>
 
       <!-- PROMINENT HP DISPLAY DIRECTLY UNDER BOSS -->
-      <div class="w-full max-w-[280px] mt-4">
+      <div class="w-full max-w-[280px] -mt-2 z-20">
         <!-- Direct HP Numbers & Percentage -->
         <div class="flex items-center justify-between font-mono mb-1.5 px-1">
           <div class="flex items-center gap-1.5 text-white font-extrabold text-sm tracking-wider">
@@ -226,7 +224,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
         <div class="w-full h-2 bg-zinc-900 rounded-full overflow-hidden p-0.5 border border-white/5 relative">
           <div 
             class="h-full rounded-full transition-all duration-300"
-            :class="hpPercent > 30 ? 'bg-gradient-to-r from-rose-500 to-amber-500' : 'bg-red-500 animate-pulse'"
+            :class="hpPercent > 30 ? 'bg-gradient-to-r from-cyan-500 to-rose-500' : 'bg-red-500 animate-pulse'"
             :style="{ width: `${hpPercent}%` }"
           />
         </div>
