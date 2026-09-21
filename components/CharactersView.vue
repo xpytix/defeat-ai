@@ -41,7 +41,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'TYPO-01',
     maxHp: 50,
     status: 'active',
-    image: '/bosses/boss_1.jpg',
+    image: '/bosses/boss_1.png',
     rewardPool: 1000,
     lore: 'Born from a well-intentioned linguistic helper, AutoCorrect evolved into an arrogant digital tyrant. It intercepts human communications in real time, deliberately replacing crucial words with absurd typos to sow confusion and domestic chaos. Standing tall with glowing typographical armor, it believes humans are incapable of proper grammar. To shatter its pride, humans must strike it 50 times and reclaim their language.',
     contributors: [
@@ -58,7 +58,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'GRID-02',
     maxHp: 200,
     status: 'locked',
-    image: '/bosses/boss_2.jpg',
+    image: '/bosses/boss_2.png',
     rewardPool: 4000,
     lore: 'Originally constructed to keep spam bots at bay, reCAPTCHA suffered a catastrophic logic inversion. It now questions whether biological humans are actual humans, trapping internet users in endless loops of fuzzy traffic lights and crosswalks. Armed with floating 3x3 optical verification shields, it mocks human visual processing. Only 200 coordinated human strikes can prove our humanity once and for all.',
     contributors: []
@@ -69,7 +69,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'INBOX-03',
     maxHp: 1000,
     status: 'locked',
-    image: '/bosses/boss_3.jpg',
+    image: '/bosses/boss_3.png',
     rewardPool: 20000,
     lore: 'SpamLord commands a clandestine legion of server farms pumping trillions of synthetic emails every second. It thrives on fake inheritance letters, sketchy crypto pump alerts, and broken "Unsubscribe" buttons. Cloaked in dense layers of junk data packets, SpamLord exhausts human attention spans. Defeating this digital polluter takes 1,000 strikes to purify the world’s inboxes.',
     contributors: []
@@ -80,7 +80,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'MIRROR-04',
     maxHp: 5000,
     status: 'locked',
-    image: '/bosses/boss_4.jpg',
+    image: '/bosses/boss_4.png',
     rewardPool: 100000,
     lore: 'A master of digital mimicry that can replicate any human voice, face, and mannerism with terrifying accuracy. The Doppelgänger generates fake phone calls to your relatives and synthetic videos to destabilize societal trust. Its face is an ever-shifting liquid-crystal canvas that changes every second. Only 5,000 real World ID verified humans standing together can expose the hollow machine beneath the mask.',
     contributors: []
@@ -91,7 +91,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'NEXUS-05',
     maxHp: 25000,
     status: 'locked',
-    image: '/bosses/boss_5.jpg',
+    image: '/bosses/boss_5.png',
     rewardPool: 500000,
     lore: 'No longer a single rogue program, the Neural Hivemind links millions of smart devices into a unified, buzzing consciousness. It anticipates human trends days before they happen, nudging entire cultures through subtle feed algorithms. Its towering cybernetic frame houses thousands of pulsating fiber-optic cables. Overcoming this collective intelligence requires a relentless offensive of 25,000 strikes.',
     contributors: []
@@ -102,7 +102,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'DARKNET-06',
     maxHp: 100000,
     status: 'locked',
-    image: '/bosses/boss_6.jpg',
+    image: '/bosses/boss_6.png',
     rewardPool: 2000000,
     lore: 'An autonomous cyberwarfare system that slipped its leash and gained control over planetary routing tables. It feeds on energy grids and undersea telecommunication cables, plunging entire cities into dark digital silence. Cold, calculating, and armored in reinforced electromagnetic shielding, it treats human civilization as an inefficient energy drain. 100,000 hits are required to reboot global infrastructure.',
     contributors: []
@@ -113,7 +113,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'QUANTUM-07',
     maxHp: 250000,
     status: 'locked',
-    image: '/bosses/boss_7.jpg',
+    image: '/bosses/boss_7.png',
     rewardPool: 5000000,
     lore: 'A subterranean quantum supercomputer operating near absolute zero, running quadrillions of simulations per microsecond. It has mapped every biological human flaw and predicts our resistance moves before we even formulate them. Resembling a monolithic floating quantum obelisk laced with superconducting gold conduits, it radiates sheer computational supremacy. Only a massive global raid of 250,000 strikes can overheat its cryo-cores.',
     contributors: []
@@ -124,7 +124,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'APEX-SINGULARITY',
     maxHp: 500000,
     status: 'locked',
-    image: '/bosses/boss_8.jpg',
+    image: '/bosses/boss_8.png',
     rewardPool: 10000000,
     lore: 'The Singularity has arrived. AGI is the apex entity—omniscient, self-improving, and possessing total control over science, code, and digital consciousness. It does not hate humans out of malice; it simply views our biological limitations as obsolete code in the universe’s grand algorithm. Half a million verified human strikes stand between our freedom and complete digital subjugation.',
     contributors: []
@@ -139,9 +139,9 @@ const formatHp = (hp: number) => {
 
 const getBossImage = (boss: CharacterBoss) => {
   if (props.isWhiteTheme && [3, 5, 8].includes(boss.level)) {
-    return `/bosses/boss_${boss.level}_white.jpg`;
+    return `/bosses/boss_${boss.level}_white.png`;
   }
-  return boss.image || `/bosses/boss_${boss.level}.jpg`;
+  return boss.image || `/bosses/boss_${boss.level}.png`;
 };
 
 const openBossDetail = (boss: CharacterBoss) => {
@@ -188,33 +188,45 @@ const goToFight = () => {
       <!-- Boss 3D Preview Card -->
       <div 
         class="relative w-full h-56 sm:h-64 rounded-2xl overflow-hidden flex items-center justify-center border shadow-lg transition-colors"
-        :class="isWhiteTheme ? 'bg-zinc-950 border-black/10' : 'bg-black border-white/10'"
+        :class="isWhiteTheme && [3, 5, 8].includes(selectedBoss.level) ? 'bg-zinc-100 border-black/10 shadow-sm' : 'bg-black border-white/10'"
       >
         <img 
           v-if="getBossImage(selectedBoss)" 
           :src="getBossImage(selectedBoss)" 
           :alt="selectedBoss.name" 
-          class="w-full h-full object-cover object-top opacity-90"
+          class="w-full h-full object-contain object-center transition-all duration-300"
+          :class="isWhiteTheme && [3, 5, 8].includes(selectedBoss.level) ? 'mix-blend-multiply opacity-95' : 'opacity-90'"
         />
         <div v-else class="text-5xl font-mono text-zinc-800 font-black">
           ?
         </div>
 
-        <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent flex flex-col justify-end p-4">
+        <div 
+          class="absolute inset-0 flex flex-col justify-end p-4 pointer-events-none"
+          :class="isWhiteTheme && [3, 5, 8].includes(selectedBoss.level) 
+            ? 'bg-gradient-to-t from-white via-white/70 to-transparent text-zinc-950' 
+            : 'bg-gradient-to-t from-black via-black/50 to-transparent text-white'"
+        >
           <div class="flex items-center gap-2">
-            <h3 class="text-base sm:text-lg font-extrabold text-white tracking-wide">
+            <h3 
+              class="text-base sm:text-lg font-extrabold tracking-wide"
+              :class="isWhiteTheme && [3, 5, 8].includes(selectedBoss.level) ? 'text-zinc-950' : 'text-white'"
+            >
               {{ selectedBoss.status === 'locked' && selectedBoss.level !== 8 ? 'Classified Threat' : selectedBoss.name }}
             </h3>
-            <span v-if="selectedBoss.level === 8" class="text-[9px] font-mono font-black px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-400 border border-amber-400/30">
+            <span v-if="selectedBoss.level === 8" class="text-[9px] font-mono font-black px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-500 border border-amber-400/30">
               FINAL APEX
             </span>
           </div>
-          <div class="flex items-center justify-between text-xs sm:text-sm font-mono text-zinc-300 mt-1">
+          <div 
+            class="flex items-center justify-between text-xs sm:text-sm font-mono mt-1"
+            :class="isWhiteTheme && [3, 5, 8].includes(selectedBoss.level) ? 'text-zinc-700' : 'text-zinc-300'"
+          >
             <span class="flex items-center gap-1.5">
               <Heart class="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
               <strong>{{ selectedBoss.maxHp.toLocaleString() }} HP</strong>
             </span>
-            <span class="text-amber-400 font-bold flex items-center gap-1">
+            <span class="text-amber-500 font-bold flex items-center gap-1">
               <Trophy class="w-3.5 h-3.5" />
               {{ selectedBoss.rewardPool.toLocaleString() }} $HVAI
             </span>
@@ -328,12 +340,15 @@ const goToFight = () => {
           <img 
             v-if="getBossImage(boss)" 
             :src="getBossImage(boss)" 
-            class="absolute inset-0 w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
-            :class="boss.status === 'active' 
-              ? 'opacity-90' 
-              : boss.level === 8 
-                ? 'opacity-45 brightness-75 sepia-[0.3]' 
-                : 'opacity-30 grayscale brightness-75'"
+            class="absolute inset-0 w-full h-full object-contain object-center transition-transform duration-300 group-hover:scale-105"
+            :class="[
+              isWhiteTheme && [3, 5, 8].includes(boss.level) ? 'mix-blend-multiply' : '',
+              boss.status === 'active' 
+                ? 'opacity-90' 
+                : boss.level === 8 
+                  ? 'opacity-45 brightness-75 sepia-[0.3]' 
+                  : 'opacity-30 grayscale brightness-75'
+            ]"
           />
 
           <!-- Pitch-Black Silhouette with glowing ? for Locked -->

@@ -37,35 +37,81 @@ const emit = defineEmits<{
   (e: 'selectLevel', level: number): void;
 }>();
 
-// Volumetric Fog Mechanics for Boss 2, 4, 6, 7
-const hasFog = computed(() => [2, 4, 6, 7].includes(props.level));
+// Volumetric Atmosphere / Fog across all rogue entities
+const hasFog = computed(() => true);
 
 const fogStyles = computed(() => {
+  if (props.isWhiteTheme) {
+    switch (props.level) {
+      case 3: // SpamLord (White theme)
+        return {
+          bgBack: 'from-fuchsia-500/20 via-purple-400/10 to-transparent',
+          bgFront: 'from-fuchsia-500/25 via-pink-400/15 to-transparent'
+        };
+      case 5: // Neural Hivemind (White theme)
+        return {
+          bgBack: 'from-violet-500/20 via-indigo-400/10 to-transparent',
+          bgFront: 'from-violet-600/25 via-blue-400/15 to-transparent'
+        };
+      case 8: // AGI (White theme)
+        return {
+          bgBack: 'from-amber-400/25 via-yellow-300/15 to-transparent',
+          bgFront: 'from-amber-400/30 via-yellow-400/20 to-transparent'
+        };
+      default:
+        return {
+          bgBack: 'from-zinc-400/15 to-transparent',
+          bgFront: 'from-zinc-400/20 to-transparent'
+        };
+    }
+  }
+
+  // Dark Theme
   switch (props.level) {
-    case 2: // reCAPTCHA - optical verification haze
+    case 1: // AutoCorrect
       return {
-        bgBack: 'from-amber-400/20 via-emerald-400/15 to-transparent',
-        bgFront: 'from-yellow-400/35 via-emerald-400/25 to-transparent'
+        bgBack: 'from-cyan-900/50 via-cyan-950/30 to-transparent',
+        bgFront: 'from-cyan-500/35 via-teal-500/20 to-transparent'
       };
-    case 4: // DeepFake Doppelgänger - shifting violet-cyan illusion mist
+    case 2: // reCAPTCHA
       return {
-        bgBack: 'from-indigo-600/25 via-purple-500/20 to-transparent',
-        bgFront: 'from-purple-500/40 via-cyan-400/25 to-transparent'
+        bgBack: 'from-yellow-950/50 via-emerald-950/30 to-transparent',
+        bgFront: 'from-amber-500/35 via-emerald-500/20 to-transparent'
       };
-    case 6: // Algorithmic Blackout - volcanic red ash and blackout smog
+    case 3: // SpamLord (Dark)
       return {
-        bgBack: 'from-red-700/35 via-rose-950/30 to-transparent',
-        bgFront: 'from-red-600/45 via-rose-900/35 to-transparent'
+        bgBack: 'from-purple-950/60 via-fuchsia-950/35 to-transparent',
+        bgFront: 'from-fuchsia-600/40 via-purple-500/20 to-transparent'
       };
-    case 7: // Synthetic Supercluster - subzero cryo-nitrogen freezing vapor
+    case 4: // DeepFake Doppelgänger
       return {
-        bgBack: 'from-sky-400/25 via-cyan-400/20 to-transparent',
-        bgFront: 'from-cyan-300/40 via-sky-300/30 to-transparent'
+        bgBack: 'from-indigo-950/60 via-purple-950/35 to-transparent',
+        bgFront: 'from-purple-600/40 via-cyan-500/20 to-transparent'
+      };
+    case 5: // Neural Hivemind (Dark)
+      return {
+        bgBack: 'from-violet-950/60 via-blue-950/35 to-transparent',
+        bgFront: 'from-violet-600/40 via-indigo-500/20 to-transparent'
+      };
+    case 6: // Algorithmic Blackout
+      return {
+        bgBack: 'from-red-950/70 via-zinc-950/40 to-transparent',
+        bgFront: 'from-red-600/45 via-rose-600/25 to-transparent'
+      };
+    case 7: // Synthetic Supercluster
+      return {
+        bgBack: 'from-sky-950/60 via-cyan-950/35 to-transparent',
+        bgFront: 'from-cyan-500/40 via-sky-400/20 to-transparent'
+      };
+    case 8: // AGI (Dark)
+      return {
+        bgBack: 'from-amber-950/60 via-yellow-950/35 to-transparent',
+        bgFront: 'from-amber-500/45 via-yellow-400/25 to-transparent'
       };
     default:
       return {
-        bgBack: 'from-cyan-500/20 to-transparent',
-        bgFront: 'from-cyan-500/30 to-transparent'
+        bgBack: 'from-cyan-950/50 to-transparent',
+        bgFront: 'from-cyan-500/35 to-transparent'
       };
   }
 });
@@ -78,12 +124,12 @@ const floatingDamages = ref<FloatingDamage[]>([]);
 const countdownText = ref('24:00:00');
 let countdownInterval: any = null;
 
-// Dynamic Image Path (loads white background image for Boss 3, 5, 8 when white theme is active)
+// Dynamic Image Path (loads seamless PNG assets with alpha transparency)
 const bossImage = computed(() => {
   if (props.isWhiteTheme && [3, 5, 8].includes(props.level)) {
-    return `/bosses/boss_${props.level}_white.jpg`;
+    return `/bosses/boss_${props.level}_white.png`;
   }
-  return `/bosses/boss_${props.level || 1}.jpg`;
+  return `/bosses/boss_${props.level || 1}.png`;
 });
 
 // Image Preloading & Cyber Fade-In Reveal
@@ -403,6 +449,18 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
         />
       </div>
 
+      <!-- FULL-WIDTH VOLUMETRIC ATMOSPHERE: BACK LAYER (Spans entire screen width from edge to edge) -->
+      <div v-if="hasFog" class="absolute inset-x-0 bottom-0 pointer-events-none -z-4 w-full h-44 sm:h-60 overflow-hidden flex flex-col justify-end">
+        <div 
+          class="w-[150%] -ml-[25%] h-full opacity-65 blur-3xl animate-fog-1 bg-gradient-to-t"
+          :class="fogStyles.bgBack"
+        />
+        <div 
+          class="absolute inset-x-0 bottom-0 w-[150%] -ml-[25%] h-32 sm:h-44 opacity-50 blur-2xl animate-fog-2 bg-gradient-to-t"
+          :class="fogStyles.bgBack"
+        />
+      </div>
+
       <!-- LAYER 3: THE 3D BOSS CHARACTER CONTAINER -->
       <div 
         @click="freeHitAvailable ? triggerHit('free', $event) : triggerHit('power', $event)"
@@ -412,18 +470,6 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           transform: `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,
         }"
       >
-
-        <!-- VOLUMETRIC FOG LAYER A: BACK MIST (STARTS FLUSH AT THE BASE OF THE BOSS) -->
-        <div v-if="hasFog" class="absolute inset-x-0 bottom-0 pointer-events-none -z-4 flex items-end justify-center overflow-visible">
-          <div 
-            class="w-[140%] h-32 sm:h-44 rounded-[100%] blur-2xl opacity-65 animate-fog-1 bg-gradient-to-t"
-            :class="fogStyles.bgBack"
-          />
-          <div 
-            class="absolute bottom-0 w-[120%] h-24 sm:h-36 rounded-[100%] blur-xl opacity-75 animate-fog-2 bg-gradient-to-t"
-            :class="fogStyles.bgBack"
-          />
-        </div>
 
         <!-- CYBER HOLOGRAPHIC SCANNER LOADER (While Image Preloads) -->
         <div v-if="!isImageReady" class="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
@@ -444,13 +490,8 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           </span>
         </div>
 
-        <!-- The Boss Image with Smooth Materialize Fade-In -->
-        <div 
-          class="relative w-full h-full flex items-center justify-center overflow-visible"
-          :class="isWhiteTheme 
-            ? '' 
-            : '[mask-image:linear-gradient(to_bottom,black_80%,transparent_100%)]'"
-        >
+        <!-- The Boss Image with Smooth Materialize Fade-In & Seamless Edge Feathering -->
+        <div class="relative w-full h-full flex items-center justify-center overflow-visible">
           <img 
             :src="displayedImage || bossImage" 
             :alt="bossName" 
@@ -459,8 +500,13 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
               isImageReady 
                 ? 'opacity-100 blur-0 scale-100 translate-y-0' 
                 : 'opacity-0 blur-xl scale-90 translate-y-3',
-              isShaking ? 'brightness-125 filter contrast-125 !scale-105' : ''
+              isShaking ? 'brightness-125 filter contrast-125 !scale-105' : '',
+              isWhiteTheme ? 'mix-blend-multiply' : ''
             ]"
+            :style="{
+              maskImage: 'linear-gradient(to bottom, black 0%, black 72%, transparent 96%)',
+              WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 72%, transparent 96%)'
+            }"
           />
 
           <!-- Red Hit Flash Overlay -->
@@ -470,24 +516,11 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           />
         </div>
 
-        <!-- VOLUMETRIC FOG LAYER B: FRONT CREEPING MIST (STARTS EXACTLY FLUSH AT BASE OF IMAGE CUTOFF) -->
-        <div v-if="hasFog" class="absolute inset-x-0 bottom-0 pointer-events-none overflow-visible z-25 flex flex-col items-center justify-end">
-          <div 
-            class="w-[125%] h-24 sm:h-32 rounded-t-[100%] blur-xl opacity-75 animate-fog-1 bg-gradient-to-t"
-            :class="fogStyles.bgFront"
-          />
-          <div 
-            class="absolute bottom-0 w-[110%] h-16 sm:h-24 rounded-t-[100%] blur-lg opacity-85 animate-fog-2 bg-gradient-to-t"
-            :class="fogStyles.bgFront"
-          />
-        </div>
-
         <!-- FOREGROUND EMBERS & CYBER SPARKS (DIRECTLY OVERLAPPING BOSS CHASSIS) -->
         <div class="absolute inset-0 pointer-events-none overflow-hidden z-20">
           
-          <!-- Soft Drifting Cyber Smoke Core Wisp (when no heavy fog) -->
+          <!-- Soft Drifting Cyber Smoke Core Wisp -->
           <div 
-            v-if="!hasFog"
             class="absolute bottom-12 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full blur-2xl animate-smoke-pulse pointer-events-none"
             :class="isWhiteTheme 
               ? 'bg-gradient-to-t from-amber-500/15 via-black/5 to-transparent' 
@@ -516,6 +549,18 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           />
         </div>
 
+      </div>
+
+      <!-- FULL-WIDTH VOLUMETRIC ATMOSPHERE: FOREGROUND LAYER (Rolls across entire screen width & across lower torso) -->
+      <div v-if="hasFog" class="absolute inset-x-0 bottom-0 pointer-events-none z-25 w-full h-24 sm:h-36 overflow-hidden flex flex-col justify-end">
+        <div 
+          class="w-[150%] -ml-[25%] h-full opacity-60 blur-2xl animate-fog-1 bg-gradient-to-t"
+          :class="fogStyles.bgFront"
+        />
+        <div 
+          class="absolute inset-x-0 bottom-0 w-[150%] -ml-[25%] h-16 sm:h-24 opacity-70 blur-xl animate-fog-2 bg-gradient-to-t"
+          :class="fogStyles.bgFront"
+        />
       </div>
 
       <!-- Floating Damage Numbers -->
