@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { ArrowLeft, Trophy, Lock, Heart, CheckCircle2, BookOpen, ShieldAlert } from 'lucide-vue-next';
+import { ref, onUnmounted } from 'vue';
+import { ArrowLeft, Trophy, Lock, Heart, CheckCircle2, BookOpen, ShieldAlert, Volume2, VolumeX } from 'lucide-vue-next';
 
 interface DamageContributor {
   address: string;
@@ -153,20 +153,70 @@ const getBossImage = (boss: CharacterBoss) => {
   return boss.image || `/bosses/boss_${boss.level}.png`;
 };
 
+// Soundtrack Audio System for Boss Preview (Looped, Default Off)
+const isAudioPlaying = ref(false);
+let bgmAudio: HTMLAudioElement | null = null;
+
+const toggleAudio = (level: number) => {
+  if (typeof window === 'undefined') return;
+  if (!bgmAudio) {
+    bgmAudio = new Audio();
+    bgmAudio.loop = true;
+    bgmAudio.preload = 'auto';
+  }
+
+  if (isAudioPlaying.value) {
+    bgmAudio.pause();
+    isAudioPlaying.value = false;
+  } else {
+    const targetSrc = `/audio/boss_${level}.mp3`;
+    if (!bgmAudio.src || !bgmAudio.src.endsWith(targetSrc)) {
+      bgmAudio.src = targetSrc;
+      bgmAudio.load();
+    }
+    bgmAudio.play().then(() => {
+      isAudioPlaying.value = true;
+    }).catch(() => {
+      isAudioPlaying.value = false;
+    });
+  }
+};
+
 const openBossDetail = (boss: CharacterBoss) => {
+  if (bgmAudio) {
+    bgmAudio.pause();
+    isAudioPlaying.value = false;
+  }
   selectedBoss.value = boss;
 };
 
 const backToRoster = () => {
+  if (bgmAudio) {
+    bgmAudio.pause();
+    isAudioPlaying.value = false;
+  }
   selectedBoss.value = null;
 };
 
 const goToFight = () => {
+  if (bgmAudio) {
+    bgmAudio.pause();
+    isAudioPlaying.value = false;
+  }
   if (!selectedBoss.value) return;
   if (isActive(selectedBoss.value.level)) {
     emit('fight', selectedBoss.value.level);
   }
 };
+
+onUnmounted(() => {
+  if (bgmAudio) {
+    bgmAudio.pause();
+    bgmAudio.src = '';
+    bgmAudio = null;
+    isAudioPlaying.value = false;
+  }
+});
 </script>
 
 <template>
@@ -235,6 +285,33 @@ const goToFight = () => {
               : 'bg-black border-white/10'
         ]"
       >
+        <!-- Soundtrack Preview Button for Known Bosses -->
+        <button
+          v-if="!isUnknown(selectedBoss.level)"
+          @click.stop="toggleAudio(selectedBoss.level)"
+          class="absolute top-3 right-3 z-30 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full backdrop-blur-md border transition-all duration-300 active:scale-95 cursor-pointer shadow-lg select-none"
+          :class="isAudioPlaying 
+            ? (isWhiteTheme 
+                ? 'bg-black text-white border-black/30 shadow-md ring-1 ring-black/20' 
+                : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.5)] ring-1 ring-cyan-500/40')
+            : (isWhiteTheme 
+                ? 'bg-white/90 text-zinc-600 hover:text-black border-black/10 shadow-sm' 
+                : 'bg-black/60 text-zinc-400 hover:text-white border-white/10 hover:border-white/20')"
+          :title="isAudioPlaying ? 'Mute Soundtrack' : 'Play Battle Soundtrack'"
+        >
+          <Volume2 v-if="isAudioPlaying" class="w-3.5 h-3.5 animate-pulse text-current" />
+          <VolumeX v-else class="w-3.5 h-3.5 text-current opacity-70" />
+          <span class="text-[9px] font-mono font-bold tracking-wider uppercase">
+            {{ isAudioPlaying ? 'BGM ON' : 'BGM' }}
+          </span>
+          <!-- Dynamic equalizer bars when active -->
+          <span v-if="isAudioPlaying" class="flex items-end gap-0.5 h-2.5 ml-0.5">
+            <span class="w-0.5 h-full bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+            <span class="w-0.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+            <span class="w-0.5 h-full bg-current rounded-full animate-bounce"></span>
+          </span>
+        </button>
+
         <!-- Boss Image for Known Entities (Active, Next, Defeated) -->
         <img 
           v-if="!isUnknown(selectedBoss.level) && getBossImage(selectedBoss)" 

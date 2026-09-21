@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { Eye, Swords, Heart, Coins, Zap, ShieldAlert } from 'lucide-vue-next';
+import { Eye, Swords, Heart, Coins, Zap, ShieldAlert, Volume2, VolumeX } from 'lucide-vue-next';
 
 interface FloatingDamage {
   id: number;
@@ -151,6 +151,57 @@ const updateCountdown = () => {
   countdownText.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 };
 
+// Soundtrack BGM Audio System (Looped, Default Off)
+const isAudioPlaying = ref(false);
+let bgmAudio: HTMLAudioElement | null = null;
+
+const initOrGetAudio = () => {
+  if (!bgmAudio && typeof window !== 'undefined') {
+    bgmAudio = new Audio();
+    bgmAudio.loop = true;
+    bgmAudio.preload = 'auto';
+  }
+  return bgmAudio;
+};
+
+const toggleAudio = () => {
+  const audio = initOrGetAudio();
+  if (!audio) return;
+
+  if (isAudioPlaying.value) {
+    audio.pause();
+    isAudioPlaying.value = false;
+  } else {
+    const targetSrc = `/audio/boss_${props.level || 1}.mp3`;
+    if (!audio.src || !audio.src.endsWith(targetSrc)) {
+      audio.src = targetSrc;
+      audio.load();
+    }
+    audio.play().then(() => {
+      isAudioPlaying.value = true;
+    }).catch((err) => {
+      console.warn('Audio playback was prevented by browser policy:', err);
+      isAudioPlaying.value = false;
+    });
+  }
+};
+
+// Switch soundtrack track if boss level changes
+watch(() => props.level, (newLevel) => {
+  const targetSrc = `/audio/boss_${newLevel || 1}.mp3`;
+  if (bgmAudio) {
+    bgmAudio.src = targetSrc;
+    if (isAudioPlaying.value) {
+      bgmAudio.load();
+      bgmAudio.play().then(() => {
+        isAudioPlaying.value = true;
+      }).catch(() => {
+        isAudioPlaying.value = false;
+      });
+    }
+  }
+});
+
 onMounted(() => {
   setupParticles();
   updateCountdown();
@@ -159,6 +210,12 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (countdownInterval) clearInterval(countdownInterval);
+  if (bgmAudio) {
+    bgmAudio.pause();
+    bgmAudio.src = '';
+    bgmAudio = null;
+    isAudioPlaying.value = false;
+  }
 });
 
 // Interactive 3D Parallax Tilt
@@ -262,11 +319,24 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
             ›
           </button>
           <span 
-            class="text-xs sm:text-sm font-mono tracking-widest font-black uppercase truncate max-w-[130px] sm:max-w-xs ml-0.5"
+            class="text-xs sm:text-sm font-mono tracking-widest font-black uppercase truncate max-w-[120px] sm:max-w-xs ml-0.5"
             :class="isWhiteTheme ? 'text-zinc-950' : 'text-zinc-200'"
           >
             {{ bossName }}
           </span>
+
+          <!-- Header Speaker Button next to Boss Name -->
+          <button
+            @click.stop="toggleAudio"
+            class="w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-90 ml-1 border"
+            :class="isAudioPlaying 
+              ? (isWhiteTheme ? 'bg-black text-white border-black shadow-sm' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.4)]') 
+              : (isWhiteTheme ? 'bg-black/5 text-zinc-500 hover:text-black border-black/10' : 'bg-white/5 text-zinc-400 hover:text-white border-white/10')"
+            :title="isAudioPlaying ? 'Mute Soundtrack' : 'Play Combat Soundtrack'"
+          >
+            <Volume2 v-if="isAudioPlaying" class="w-3.5 h-3.5 animate-pulse" />
+            <VolumeX v-else class="w-3.5 h-3.5 opacity-60" />
+          </button>
         </div>
 
         <!-- Token Balance -->
@@ -350,6 +420,32 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           transform: `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,
         }"
       >
+
+        <!-- FLOATING AUDIO SPEAKER BUTTON DIRECTLY NEXT TO THE BOSS -->
+        <button
+          @click.stop="toggleAudio"
+          class="absolute top-2 right-2 sm:top-4 sm:right-4 z-30 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full backdrop-blur-md border transition-all duration-300 active:scale-95 cursor-pointer shadow-lg select-none"
+          :class="isAudioPlaying 
+            ? (isWhiteTheme 
+                ? 'bg-black text-white border-black/30 shadow-md ring-1 ring-black/20' 
+                : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.5)] ring-1 ring-cyan-500/40')
+            : (isWhiteTheme 
+                ? 'bg-white/90 text-zinc-600 hover:text-black border-black/10 shadow-sm' 
+                : 'bg-black/60 text-zinc-400 hover:text-white border-white/10 hover:border-white/20')"
+          :title="isAudioPlaying ? 'Mute Soundtrack' : 'Play Boss Combat Soundtrack'"
+        >
+          <Volume2 v-if="isAudioPlaying" class="w-3.5 h-3.5 animate-pulse text-current" />
+          <VolumeX v-else class="w-3.5 h-3.5 text-current opacity-70" />
+          <span class="text-[9px] font-mono font-bold tracking-wider uppercase">
+            {{ isAudioPlaying ? 'BGM ON' : 'BGM' }}
+          </span>
+          <!-- Dynamic equalizer bars when active -->
+          <span v-if="isAudioPlaying" class="flex items-end gap-0.5 h-2.5 ml-0.5">
+            <span class="w-0.5 h-full bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+            <span class="w-0.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+            <span class="w-0.5 h-full bg-current rounded-full animate-bounce"></span>
+          </span>
+        </button>
 
         <!-- The Boss Image: Clean, Crisp & Immediate (No Fade Lag or Gradient Clipping) -->
         <div class="relative w-full h-full flex items-center justify-center overflow-visible">
