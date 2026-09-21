@@ -56,6 +56,32 @@ onMounted(() => {
   }
 });
 
+// Boss List metadata
+const BOSS_LIST = [
+  { level: 1, name: 'AutoCorrect', maxHp: 50 },
+  { level: 2, name: 'reCAPTCHA', maxHp: 200 },
+  { level: 3, name: 'SpamLord', maxHp: 1000 },
+  { level: 4, name: 'DeepFake Doppelgänger', maxHp: 5000 },
+  { level: 5, name: 'Neural Hivemind', maxHp: 25000 },
+  { level: 6, name: 'Algorithmic Blackout', maxHp: 100000 },
+  { level: 7, name: 'Synthetic Supercluster', maxHp: 250000 },
+  { level: 8, name: 'AGI', maxHp: 500000 },
+];
+
+const selectBoss = (lvl: number) => {
+  const target = BOSS_LIST.find(b => b.level === lvl) || BOSS_LIST[0];
+  currentBossLevel.value = target.level;
+  bossName.value = target.name;
+  maxHp.value = target.maxHp;
+  currentHp.value = Math.round(target.maxHp * 0.85);
+  showToast(`[TEST] LVL 0${target.level}: ${target.name}`);
+};
+
+const handleFight = (level: number) => {
+  selectBoss(level);
+  activeTab.value = 'boss';
+};
+
 // Handle Hit from BossView (Flat 20 $HVAI per strike)
 const handleHit = (type: 'free' | 'power') => {
   if (type === 'free') {
@@ -93,14 +119,10 @@ const handleHit = (type: 'free' | 'power') => {
 
     // Boss Defeated
     if (currentHp.value <= 0) {
-      showToast('🎉 AutoCorrect defeated! Unlocking reCAPTCHA...');
+      showToast(`🎉 ${bossName.value} defeated!`);
       setTimeout(() => {
-        currentBossLevel.value = 2;
-        maxHp.value = 200;
-        currentHp.value = 200;
-        bossName.value = 'reCAPTCHA';
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('defeat_ai_current_hp', '200');
+        if (currentBossLevel.value < 8) {
+          selectBoss(currentBossLevel.value + 1);
         }
       }, 1500);
     }
@@ -136,11 +158,12 @@ const handleHit = (type: 'free' | 'power') => {
         :next-free-hit-time="nextFreeHitTime"
         :user-tokens="userTokens"
         @hit="handleHit"
+        @select-level="selectBoss"
       />
       <CharactersView 
         v-else-if="activeTab === 'characters'" 
         :current-level="currentBossLevel"
-        @fight="activeTab = 'boss'"
+        @fight="handleFight"
       />
     </main>
 

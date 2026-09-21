@@ -32,7 +32,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'hit', type: 'free' | 'power'): void
+  (e: 'hit', type: 'free' | 'power'): void;
+  (e: 'selectLevel', level: number): void;
 }>();
 
 // 3D Parallax Tilt State
@@ -208,12 +209,43 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
     @touchend="resetTilt"
   >
     
+    <!-- TEST CONTROLS (Easily switch between all 8 bosses for testing) -->
+    <div class="w-full flex items-center justify-between px-2.5 py-1 mb-1 rounded-lg bg-amber-400/10 border border-amber-400/25 text-xs font-mono">
+      <div class="flex items-center gap-1.5 text-[10px] text-amber-300 font-bold uppercase tracking-wider">
+        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
+        <span>TEST:</span>
+      </div>
+      
+      <div class="flex items-center gap-1">
+        <button
+          v-for="i in 8"
+          :key="i"
+          @click="emit('selectLevel', i)"
+          class="w-6 h-5 rounded flex items-center justify-center text-[10px] font-bold transition-all"
+          :class="level === i 
+            ? (i === 8 ? 'bg-amber-400 text-black font-black shadow-[0_0_8px_rgba(251,191,36,0.5)]' : 'bg-white text-black font-black shadow-[0_0_8px_rgba(255,255,255,0.4)]') 
+            : 'text-zinc-400 hover:text-white bg-black/40 hover:bg-white/10'"
+          :title="`Switch to Boss ${i}`"
+        >
+          {{ i }}
+        </button>
+      </div>
+    </div>
+
     <!-- TOP BALANCED HEADER & TELEMETRY -->
     <div class="w-full flex flex-col space-y-1 pt-1 px-1">
       
       <!-- Upper Status Row -->
       <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5">
+          <button 
+            @click="emit('selectLevel', Math.max(1, level - 1))"
+            :disabled="level <= 1"
+            class="w-5 h-5 rounded flex items-center justify-center text-zinc-400 hover:text-white disabled:opacity-20 disabled:hover:text-zinc-400 bg-white/5 border border-white/10 text-xs transition-colors"
+            title="Previous Boss"
+          >
+            ‹
+          </button>
           <span 
             class="text-xs font-mono font-black px-2 py-0.5 rounded border"
             :class="level === 8 
@@ -222,7 +254,15 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           >
             LVL {{ String(level).padStart(2, '0') }}
           </span>
-          <span class="text-xs font-mono tracking-widest text-zinc-300 font-bold uppercase">
+          <button 
+            @click="emit('selectLevel', Math.min(8, level + 1))"
+            :disabled="level >= 8"
+            class="w-5 h-5 rounded flex items-center justify-center text-zinc-400 hover:text-white disabled:opacity-20 disabled:hover:text-zinc-400 bg-white/5 border border-white/10 text-xs transition-colors"
+            title="Next Boss"
+          >
+            ›
+          </button>
+          <span class="text-xs font-mono tracking-widest text-zinc-300 font-bold uppercase truncate max-w-[130px]">
             {{ bossName }}
           </span>
         </div>

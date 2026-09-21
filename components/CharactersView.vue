@@ -145,7 +145,7 @@ const backToRoster = () => {
 };
 
 const goToFight = () => {
-  emit('fight', 1);
+  emit('fight', selectedBoss.value?.level || 1);
 };
 </script>
 
@@ -251,13 +251,13 @@ const goToFight = () => {
         </div>
       </div>
 
-      <!-- Action Button -->
+      <!-- Action Button (Available for testing any boss) -->
       <button 
-        v-if="selectedBoss.status === 'active'"
         @click="goToFight"
-        class="w-full py-3 rounded-xl bg-white text-black font-extrabold text-xs tracking-widest uppercase hover:bg-zinc-200 transition-all mt-auto"
+        class="w-full py-3 rounded-xl bg-white text-black font-extrabold text-xs tracking-widest uppercase hover:bg-zinc-200 transition-all mt-auto flex items-center justify-center gap-2"
       >
-        GO TO ARENA
+        <span>ENTER ARENA</span>
+        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/10 font-bold">LVL {{ String(selectedBoss.level).padStart(2, '0') }}</span>
       </button>
 
     </div>
