@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Eye, Swords, Heart, Coins, Zap, ShieldAlert } from 'lucide-vue-next';
 
 interface FloatingDamage {
@@ -43,23 +43,45 @@ const floatingDamages = ref<FloatingDamage[]>([]);
 const countdownText = ref('24:00:00');
 let countdownInterval: any = null;
 
+// Dynamic Image Path
+const bossImage = computed(() => `/bosses/boss_${props.level || 1}.jpg`);
+
 // Simulated spectator counts
 const spectatorCount = ref('4.2K');
 const activeAttackerCount = ref(186);
 
-// Layered Volumetric Particles: Foreground (in front of boss) & Background (behind boss)
+// Layered Volumetric Particles: Foreground & Background
 const foregroundParticles = ref<Particle[]>([]);
 const backgroundParticles = ref<Particle[]>([]);
 
-onMounted(() => {
-  const colors = [
-    'bg-cyan-400 text-cyan-300',
-    'bg-amber-300 text-amber-300',
-    'bg-rose-400 text-rose-300',
-    'bg-white text-cyan-200'
-  ];
+// Boss-specific color palettes
+const getBossColors = (lvl: number) => {
+  switch (lvl) {
+    case 1: // AutoCorrect
+      return ['bg-cyan-400 text-cyan-300', 'bg-amber-300 text-amber-300', 'bg-cyan-200 text-cyan-200'];
+    case 2: // reCAPTCHA
+      return ['bg-yellow-400 text-yellow-300', 'bg-emerald-400 text-emerald-300', 'bg-amber-400 text-amber-300'];
+    case 3: // SpamLord
+      return ['bg-fuchsia-500 text-fuchsia-400', 'bg-purple-400 text-purple-300', 'bg-pink-400 text-pink-300'];
+    case 4: // DeepFake
+      return ['bg-cyan-300 text-cyan-200', 'bg-purple-300 text-purple-200', 'bg-indigo-300 text-indigo-200'];
+    case 5: // Hivemind
+      return ['bg-violet-400 text-violet-300', 'bg-blue-400 text-blue-300', 'bg-indigo-400 text-indigo-300'];
+    case 6: // Blackout
+      return ['bg-red-500 text-red-400', 'bg-rose-500 text-rose-400', 'bg-amber-600 text-amber-500'];
+    case 7: // Supercluster
+      return ['bg-cyan-300 text-cyan-200', 'bg-amber-300 text-amber-200', 'bg-sky-400 text-sky-300'];
+    case 8: // AGI
+      return ['bg-amber-300 text-amber-200', 'bg-white text-yellow-100', 'bg-yellow-400 text-amber-300'];
+    default:
+      return ['bg-cyan-400 text-cyan-300', 'bg-amber-300 text-amber-300'];
+  }
+};
 
-  // Foreground particles (overlap directly across boss chassis and visor)
+const setupParticles = () => {
+  const colors = getBossColors(props.level);
+
+  // Foreground particles (overlap directly across boss chassis)
   foregroundParticles.value = Array.from({ length: 26 }, (_, i) => ({
     id: i,
     left: `${18 + Math.random() * 64}%`,
@@ -84,7 +106,9 @@ onMounted(() => {
     color: colors[(i + 1) % colors.length],
     blur: '1.5px'
   }));
-});
+};
+
+watch(() => props.level, setupParticles);
 
 // HP Percentage
 const hpPercent = computed(() => {
@@ -111,6 +135,7 @@ const updateCountdown = () => {
 };
 
 onMounted(() => {
+  setupParticles();
   updateCountdown();
   countdownInterval = setInterval(updateCountdown, 1000);
 });
@@ -189,10 +214,15 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
       <!-- Upper Status Row -->
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-mono font-black text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+          <span 
+            class="text-xs font-mono font-black px-2 py-0.5 rounded border"
+            :class="level === 8 
+              ? 'text-amber-300 bg-amber-400/20 border-amber-400/40' 
+              : 'text-rose-500 bg-rose-500/10 border-rose-500/20'"
+          >
             LVL {{ String(level).padStart(2, '0') }}
           </span>
-          <span class="text-xs font-mono tracking-widest text-zinc-400 font-bold uppercase">
+          <span class="text-xs font-mono tracking-widest text-zinc-300 font-bold uppercase">
             {{ bossName }}
           </span>
         </div>
@@ -207,9 +237,11 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
       <!-- Lower Sub-Bar with Spectator Icons -->
       <div class="flex items-center justify-between text-[11px] font-mono text-zinc-500 pt-1 border-b border-white/[0.06] pb-2">
-        <span class="text-[10px] text-zinc-500 uppercase tracking-wider flex items-center gap-1">
-          <ShieldAlert class="w-3 h-3 text-cyan-400" />
-          <span>CLASS-1 ROGUE ENTITY</span>
+        <span class="text-[10px] uppercase tracking-wider flex items-center gap-1"
+          :class="level === 8 ? 'text-amber-400 font-bold' : 'text-zinc-500'"
+        >
+          <ShieldAlert class="w-3 h-3" :class="level === 8 ? 'text-amber-400' : 'text-cyan-400'" />
+          <span>{{ level === 8 ? 'APEX SINGULARITY THREAT' : 'CLASS-1 ROGUE ENTITY' }}</span>
         </span>
 
         <div class="flex items-center gap-4 text-xs">
@@ -227,13 +259,15 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
     </div>
 
-    <!-- 3D CENTERPIECE ARENA: MASSIVE BOSS WITH REALISTIC MULTI-LAYER PARTICLES OVERLAPPING CHASSIS -->
+    <!-- 3D CENTERPIECE ARENA: MASSIVE BOSS WITH REALISTIC VOLUMETRIC EMBERS & SMOKE -->
     <div class="relative flex-1 flex flex-col items-center justify-center my-auto w-full overflow-visible py-2">
       
-      <!-- LAYER 1: Ambient Reactor Glow & Background Mist -->
+      <!-- LAYER 1: Ambient Reactor Glow -->
       <div 
-        class="absolute w-84 h-84 rounded-full blur-[120px] pointer-events-none -z-10"
-        :class="hpPercent > 30 ? 'bg-cyan-500/15' : 'bg-red-500/20'"
+        class="absolute w-84 h-84 rounded-full blur-[120px] pointer-events-none -z-10 transition-colors duration-700"
+        :class="level === 8 
+          ? 'bg-amber-400/20' 
+          : hpPercent > 30 ? 'bg-cyan-500/15' : 'bg-red-500/20'"
       />
 
       <!-- LAYER 2: BACKGROUND CYBER EMBERS (Behind Boss) -->
@@ -269,8 +303,8 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
         <!-- The Boss Image -->
         <div class="relative w-full h-full flex items-center justify-center overflow-visible [mask-image:radial-gradient(circle_at_center,black_80%,transparent_100%)]">
           <img 
-            src="/bosses/boss_1.jpg" 
-            alt="AI Boss 3D" 
+            :src="bossImage" 
+            :alt="bossName" 
             class="w-full h-full object-contain select-none pointer-events-none transition-transform duration-200"
             :class="{ 'brightness-125 filter contrast-125 scale-105': isShaking }"
           />
@@ -282,11 +316,16 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           />
         </div>
 
-        <!-- LAYER 4: FOREGROUND EMBERS & CYBER SPARKS (DIRECTLY OVERLAPPING BOSS CHASSIS & CHEST) -->
+        <!-- LAYER 4: FOREGROUND EMBERS & CYBER SPARKS (DIRECTLY OVERLAPPING BOSS CHASSIS) -->
         <div class="absolute inset-0 pointer-events-none overflow-hidden z-20">
           
           <!-- Soft Drifting Cyber Smoke Core Wisp -->
-          <div class="absolute bottom-16 left-1/2 -translate-x-1/2 w-48 h-48 bg-gradient-to-t from-cyan-500/10 via-amber-400/5 to-transparent rounded-full blur-2xl animate-smoke-pulse pointer-events-none" />
+          <div 
+            class="absolute bottom-16 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full blur-2xl animate-smoke-pulse pointer-events-none"
+            :class="level === 8 
+              ? 'bg-gradient-to-t from-amber-400/15 via-white/10 to-transparent' 
+              : 'bg-gradient-to-t from-cyan-500/10 via-amber-400/5 to-transparent'"
+          />
 
           <!-- Overlapping Glowing Sparks and Digital Glints -->
           <div 
@@ -334,11 +373,15 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           <span class="text-xs font-mono font-bold text-zinc-400">{{ hpPercent }}%</span>
         </div>
 
-        <!-- Sleek HP Progress Bar with Cyan/Rose Gradient -->
+        <!-- Sleek HP Progress Bar with Gradient -->
         <div class="w-full h-2.5 bg-zinc-900/90 rounded-full overflow-hidden p-0.5 border border-white/10 relative shadow-inner">
           <div 
             class="h-full rounded-full transition-all duration-300"
-            :class="hpPercent > 30 ? 'bg-gradient-to-r from-cyan-500 via-amber-400 to-rose-500' : 'bg-red-500 animate-pulse'"
+            :class="level === 8 
+              ? 'bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500' 
+              : hpPercent > 30 
+                ? 'bg-gradient-to-r from-cyan-500 via-amber-400 to-rose-500' 
+                : 'bg-red-500 animate-pulse'"
             :style="{ width: `${hpPercent}%` }"
           />
         </div>

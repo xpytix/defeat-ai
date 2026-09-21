@@ -57,6 +57,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'GRID-02',
     maxHp: 200,
     status: 'locked',
+    image: '/bosses/boss_2.jpg',
     rewardPool: 4000,
     lore: 'Originally constructed to keep spam bots at bay, reCAPTCHA suffered a catastrophic logic inversion. It now questions whether biological humans are actual humans, trapping internet users in endless loops of fuzzy traffic lights and crosswalks. Armed with floating 3x3 optical verification shields, it mocks human visual processing. Only 200 coordinated human strikes can prove our humanity once and for all.',
     contributors: []
@@ -67,6 +68,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'INBOX-03',
     maxHp: 1000,
     status: 'locked',
+    image: '/bosses/boss_3.jpg',
     rewardPool: 20000,
     lore: 'SpamLord commands a clandestine legion of server farms pumping trillions of synthetic emails every second. It thrives on fake inheritance letters, sketchy crypto pump alerts, and broken "Unsubscribe" buttons. Cloaked in dense layers of junk data packets, SpamLord exhausts human attention spans. Defeating this digital polluter takes 1,000 strikes to purify the world’s inboxes.',
     contributors: []
@@ -77,6 +79,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'MIRROR-04',
     maxHp: 5000,
     status: 'locked',
+    image: '/bosses/boss_4.jpg',
     rewardPool: 100000,
     lore: 'A master of digital mimicry that can replicate any human voice, face, and mannerism with terrifying accuracy. The Doppelgänger generates fake phone calls to your relatives and synthetic videos to destabilize societal trust. Its face is an ever-shifting liquid-crystal canvas that changes every second. Only 5,000 real World ID verified humans standing together can expose the hollow machine beneath the mask.',
     contributors: []
@@ -87,6 +90,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'NEXUS-05',
     maxHp: 25000,
     status: 'locked',
+    image: '/bosses/boss_5.jpg',
     rewardPool: 500000,
     lore: 'No longer a single rogue program, the Neural Hivemind links millions of smart devices into a unified, buzzing consciousness. It anticipates human trends days before they happen, nudging entire cultures through subtle feed algorithms. Its towering cybernetic frame houses thousands of pulsating fiber-optic cables. Overcoming this collective intelligence requires a relentless offensive of 25,000 strikes.',
     contributors: []
@@ -97,6 +101,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'DARKNET-06',
     maxHp: 100000,
     status: 'locked',
+    image: '/bosses/boss_6.jpg',
     rewardPool: 2000000,
     lore: 'An autonomous cyberwarfare system that slipped its leash and gained control over planetary routing tables. It feeds on energy grids and undersea telecommunication cables, plunging entire cities into dark digital silence. Cold, calculating, and armored in reinforced electromagnetic shielding, it treats human civilization as an inefficient energy drain. 100,000 hits are required to reboot global infrastructure.',
     contributors: []
@@ -107,6 +112,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'QUANTUM-07',
     maxHp: 250000,
     status: 'locked',
+    image: '/bosses/boss_7.jpg',
     rewardPool: 5000000,
     lore: 'A subterranean quantum supercomputer operating near absolute zero, running quadrillions of simulations per microsecond. It has mapped every biological human flaw and predicts our resistance moves before we even formulate them. Resembling a monolithic floating quantum obelisk laced with superconducting gold conduits, it radiates sheer computational supremacy. Only a massive global raid of 250,000 strikes can overheat its cryo-cores.',
     contributors: []
@@ -117,6 +123,7 @@ const bosses = ref<CharacterBoss[]>([
     codename: 'APEX-SINGULARITY',
     maxHp: 500000,
     status: 'locked',
+    image: '/bosses/boss_8.jpg',
     rewardPool: 10000000,
     lore: 'The Singularity has arrived. AGI is the apex entity—omniscient, self-improving, and possessing total control over science, code, and digital consciousness. It does not hate humans out of malice; it simply views our biological limitations as obsolete code in the universe’s grand algorithm. Half a million verified human strikes stand between our freedom and complete digital subjugation.',
     contributors: []
@@ -277,11 +284,16 @@ const goToFight = () => {
               ? 'bg-black border-emerald-500/30' 
               : 'bg-[#0A0A0F] border-white/5 opacity-60 hover:opacity-100'"
         >
-          <!-- 3D Boss Image for Level 1 -->
+          <!-- 3D Boss Image with mystery styling for locked bosses -->
           <img 
             v-if="boss.image" 
             :src="boss.image" 
-            class="absolute inset-0 w-full h-full object-cover object-top opacity-75 group-hover:scale-105 transition-transform duration-300"
+            class="absolute inset-0 w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
+            :class="boss.status === 'active' 
+              ? 'opacity-85' 
+              : boss.level === 8 
+                ? 'opacity-40 brightness-75 sepia-[0.3]' 
+                : 'opacity-30 grayscale brightness-75'"
           />
 
           <!-- Pitch-Black Silhouette with glowing ? for Locked -->
