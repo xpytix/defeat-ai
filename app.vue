@@ -162,7 +162,7 @@ const handleHit = (type: 'free' | 'power') => {
     <div class="pt-safe shrink-0" />
 
     <!-- Main View Switcher (Instant crisp switching, zero fade lag) -->
-    <main class="flex-1 flex flex-col overflow-hidden relative">
+    <main class="flex-1 min-h-0 flex flex-col overflow-hidden relative">
       <BossView 
         v-if="activeTab === 'boss'" 
         :current-hp="currentHp"

@@ -159,7 +159,7 @@ const goToFight = () => {
 
 <template>
   <div 
-    class="flex-1 flex flex-col px-5 sm:px-8 pt-3 pb-24 max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-3xl mx-auto w-full select-none overflow-y-auto transition-colors duration-500"
+    class="flex-1 flex flex-col px-5 sm:px-8 pt-3 pb-6 sm:pb-8 max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-3xl mx-auto w-full select-none overflow-y-auto transition-colors duration-500"
     :class="isWhiteTheme ? 'text-zinc-950' : 'text-white'"
   >
     

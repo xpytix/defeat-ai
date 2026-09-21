@@ -218,7 +218,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
 <template>
   <div 
-    class="h-full flex-1 flex flex-col justify-between items-center px-3 sm:px-6 pt-1 pb-16 sm:pb-20 max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-3xl mx-auto w-full select-none overflow-hidden transition-colors duration-500"
+    class="h-full w-full flex-1 flex flex-col justify-between items-center px-3 sm:px-6 pt-1 pb-2 sm:pb-3 max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-3xl mx-auto select-none overflow-hidden transition-colors duration-500"
     @mousemove="handlePointerMove"
     @touchmove="handlePointerMove"
     @mouseleave="resetTilt"
@@ -344,7 +344,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
       <!-- LAYER 3: THE 3D BOSS CHARACTER CONTAINER (EXPANDS FOR IPHONE 16 PRO MAX & TABLETS) -->
       <div 
         @click="freeHitAvailable ? triggerHit('free', $event) : triggerHit('power', $event)"
-        class="relative w-full h-full max-h-[46vh] sm:max-h-[50vh] md:max-h-[55vh] max-w-[min(94vw,430px)] sm:max-w-[500px] md:max-w-[580px] aspect-square cursor-pointer flex items-center justify-center transition-transform duration-100 ease-out active:scale-95 my-auto"
+        class="relative w-full h-full max-h-full max-w-[min(94vw,430px)] sm:max-w-[500px] md:max-w-[580px] aspect-square cursor-pointer flex items-center justify-center transition-transform duration-100 ease-out active:scale-95 my-auto"
         :class="{ 'animate-shake': isShaking }"
         :style="{
           transform: `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,

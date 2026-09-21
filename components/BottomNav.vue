@@ -20,7 +20,7 @@ const selectTab = (tab: 'boss' | 'characters') => {
 
 <template>
   <nav 
-    class="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-2xl pb-safe select-none transition-colors duration-500"
+    class="w-full shrink-0 z-40 backdrop-blur-2xl pb-safe select-none transition-colors duration-500"
     :class="isWhiteTheme 
       ? 'bg-white/95 border-t border-black/10 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]' 
       : 'bg-[#07070A]/90 border-t border-white/5'"
