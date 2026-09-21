@@ -31,7 +31,7 @@ const emit = defineEmits<{
 // Selected Boss for detailed view (null = roster grid)
 const selectedBoss = ref<CharacterBoss | null>(null);
 
-// Flat rate: 20 $HVAI per hit across all bosses
+// Flat rate: 20 $HVAI per strike across all levels
 const bosses = ref<CharacterBoss[]>([
   {
     level: 1,
@@ -78,8 +78,8 @@ const bosses = ref<CharacterBoss[]>([
   },
   {
     level: 5,
-    name: 'Hallucinating LLM',
-    codename: 'CHAOS-05',
+    name: 'Neural Hivemind',
+    codename: 'NEXUS-05',
     maxHp: 25000,
     status: 'locked',
     rewardPool: 500000, // 25000 * 20
@@ -87,26 +87,26 @@ const bosses = ref<CharacterBoss[]>([
   },
   {
     level: 6,
-    name: 'Algorithmic Doomscroller',
-    codename: 'FEED-06',
-    maxHp: 75000,
+    name: 'Algorithmic Blackout',
+    codename: 'DARKNET-06',
+    maxHp: 100000,
     status: 'locked',
-    rewardPool: 1500000, // 75000 * 20
+    rewardPool: 2000000, // 100000 * 20
     contributors: []
   },
   {
     level: 7,
-    name: 'Autonomous Swarm',
-    codename: 'FLEET-07',
-    maxHp: 200000,
+    name: 'Synthetic Supercluster',
+    codename: 'QUANTUM-07',
+    maxHp: 250000,
     status: 'locked',
-    rewardPool: 4000000, // 200000 * 20
+    rewardPool: 5000000, // 250000 * 20
     contributors: []
   },
   {
     level: 8,
-    name: 'The Singularity',
-    codename: 'OMEGA-08',
+    name: 'AGI',
+    codename: 'APEX-SINGULARITY',
     maxHp: 500000,
     status: 'locked',
     rewardPool: 10000000, // 500000 * 20
@@ -167,9 +167,14 @@ const goToFight = () => {
         </div>
 
         <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent flex flex-col justify-end p-4">
-          <h3 class="text-base font-extrabold text-white tracking-wide">
-            {{ selectedBoss.status === 'locked' ? 'Classified AI Unit' : selectedBoss.name }}
-          </h3>
+          <div class="flex items-center gap-2">
+            <h3 class="text-base font-extrabold text-white tracking-wide">
+              {{ selectedBoss.status === 'locked' ? 'Classified Threat' : selectedBoss.name }}
+            </h3>
+            <span v-if="selectedBoss.level === 8" class="text-[9px] font-mono font-black px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-400 border border-amber-400/30">
+              FINAL APEX
+            </span>
+          </div>
           <div class="flex items-center justify-between text-xs font-mono text-zinc-300 mt-1">
             <span class="flex items-center gap-1">
               <Heart class="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
@@ -251,7 +256,7 @@ const goToFight = () => {
       <!-- Minimal Header -->
       <div class="flex items-center justify-between text-[11px] font-mono tracking-widest text-zinc-400 pt-1 pb-1">
         <span class="font-bold text-zinc-200">BOSS ROSTER</span>
-        <span class="text-zinc-500">50 HP ➔ 500K HP</span>
+        <span class="text-zinc-500">50 HP ➔ 500K (AGI)</span>
       </div>
 
       <!-- Grid of Boss Cards -->
@@ -276,8 +281,11 @@ const goToFight = () => {
 
           <!-- Pitch-Black Silhouette with glowing ? for Locked -->
           <div v-else class="absolute inset-0 bg-black flex items-center justify-center">
-            <span class="text-3xl font-mono font-black text-zinc-800 group-hover:text-zinc-700 transition-colors">
-              ?
+            <span 
+              class="font-mono font-black group-hover:text-zinc-700 transition-colors"
+              :class="boss.level === 8 ? 'text-4xl text-amber-500/40 drop-shadow-[0_0_10px_rgba(251,191,36,0.3)]' : 'text-3xl text-zinc-800'"
+            >
+              {{ boss.level === 8 ? 'AGI' : '?' }}
             </span>
           </div>
 
@@ -285,7 +293,11 @@ const goToFight = () => {
           <div class="relative z-10 flex items-center justify-between w-full">
             <span 
               class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded"
-              :class="boss.status === 'active' ? 'bg-rose-500 text-white' : 'bg-black/70 text-zinc-400 border border-white/10'"
+              :class="boss.status === 'active' 
+                ? 'bg-rose-500 text-white' 
+                : boss.level === 8 
+                  ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' 
+                  : 'bg-black/70 text-zinc-400 border border-white/10'"
             >
               LVL {{ String(boss.level).padStart(2, '0') }}
             </span>
@@ -296,7 +308,7 @@ const goToFight = () => {
           <!-- Bottom Info with Clear HP Count -->
           <div class="relative z-10 bg-gradient-to-t from-black via-black/80 to-transparent -mx-3 -mb-3 p-2.5 pt-4">
             <div class="text-[11px] font-bold text-white truncate">
-              {{ boss.status === 'locked' ? 'Classified' : boss.name }}
+              {{ boss.status === 'locked' && boss.level !== 8 ? 'Classified' : boss.name }}
             </div>
             <div class="flex items-center justify-between text-[10px] font-mono text-zinc-400 mt-0.5">
               <span class="flex items-center gap-1 font-semibold text-rose-400">
