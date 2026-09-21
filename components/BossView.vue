@@ -29,6 +29,9 @@ const props = defineProps<{
   freeHitAvailable: boolean;
   nextFreeHitTime: number | null;
   userTokens: number;
+  onChainTokens?: number;
+  unclaimedTokens?: number;
+  walletAddress?: string;
   hasSword?: boolean;
   hasBow?: boolean;
   isWhiteTheme?: boolean;
@@ -388,12 +391,25 @@ const formatTokens = (val: number) => {
           @click="emit('openShop')"
           class="shrink-0 flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 rounded-full text-amber-500 font-bold shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95 group select-none"
           :class="isWhiteTheme ? 'bg-black/[0.04] border border-black/10 hover:bg-black/[0.08]' : 'bg-white/[0.05] border border-white/10 hover:bg-white/[0.1]'"
-          :title="`Balance: ${userTokens.toLocaleString()} $DEF (Click to open Shop)`"
+          :title="`On-Chain: ${(onChainTokens || 0).toLocaleString()} $DEF | Unclaimed: ${(unclaimedTokens || userTokens || 0).toLocaleString()} $DEF (Click to open Shop)`"
         >
           <Coins class="w-3.5 h-3.5 text-amber-500 group-hover:rotate-12 transition-transform shrink-0" />
-          <span class="text-xs font-mono font-black whitespace-nowrap tabular-nums">{{ formatTokens(userTokens) }}</span>
+          <span class="text-xs font-mono font-black whitespace-nowrap tabular-nums">
+            {{ formatTokens((onChainTokens && onChainTokens > 0) ? onChainTokens : (unclaimedTokens !== undefined ? unclaimedTokens : userTokens)) }}
+          </span>
           <span class="text-[9px] font-mono font-normal shrink-0" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">$DEF</span>
-          <span class="text-[9px] px-1 py-0.2 rounded font-mono font-bold ml-0.5 shrink-0"
+
+          <!-- Unclaimed Bounty Badge -->
+          <span 
+            v-if="unclaimedTokens && unclaimedTokens > 0 && onChainTokens && onChainTokens > 0"
+            class="text-[9px] px-1.5 py-0.2 rounded font-mono font-black shrink-0 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+            title="Unclaimed rewards ready to withdraw"
+          >
+            +{{ unclaimedTokens }}
+          </span>
+          <span 
+            v-else
+            class="text-[9px] px-1 py-0.2 rounded font-mono font-bold ml-0.5 shrink-0"
             :class="isWhiteTheme ? 'bg-black/10 text-black' : 'bg-amber-500/20 text-amber-400'"
           >+</span>
         </div>

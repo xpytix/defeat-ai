@@ -26,8 +26,12 @@ const isInsideWorldApp = ref(false);
 const showWorldAppModal = ref(false);
 const isVerifying = ref(false);
 
-// User Token Balance ($DEF) (Pristine clean start)
-const userTokens = ref(0);
+// User Token Balance ($DEF) & World Chain Wallet Connection
+const walletAddress = ref<string>('');
+const onChainTokens = ref<number>(0);
+const unclaimedTokens = ref<number>(0);
+const userTokens = ref<number>(0); // In-game unclaimed rewards
+const isFetchingBalance = ref<boolean>(false);
 
 // Armory & Weapon Inventory
 const hasSword = ref(false); // Quantum Plasma Blade: 2x daily strike damage (-2 HP) & 2x tokens (+40 $DEF)
@@ -90,6 +94,7 @@ const fetchRaidState = async () => {
 
     if (res && res.player) {
       userTokens.value = res.player.tokens;
+      unclaimedTokens.value = res.player.tokens;
       hasSword.value = res.player.hasSword;
       hasBow.value = res.player.hasBow;
 
@@ -117,6 +122,71 @@ const fetchRaidState = async () => {
   }
 };
 
+// Fetch real on-chain $DEF balance from World Chain RPC
+const fetchOnChainBalance = async (addressOverride?: string) => {
+  const target = addressOverride || walletAddress.value;
+  if (!target || !target.startsWith('0x') || target.length !== 42) return;
+
+  try {
+    isFetchingBalance.value = true;
+    const res: any = await $fetch('/api/balance', {
+      params: { address: target }
+    });
+
+    if (res && res.success) {
+      onChainTokens.value = res.balance;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('defeat_ai_onchain_tokens', res.balance.toString());
+      }
+    }
+  } catch (err) {
+    console.warn('[DEF Balance] Failed to fetch on-chain DEF balance:', err);
+  } finally {
+    isFetchingBalance.value = false;
+  }
+};
+
+// Connect wallet via MiniKit walletAuth in World App or manual prompt
+const handleConnectWallet = async () => {
+  if (MiniKit.isInstalled()) {
+    try {
+      showToast('Connecting World App Wallet...');
+      const nonce = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const res = await MiniKit.commandsAsync.walletAuth({
+        nonce,
+        statement: 'Connect wallet to Defeat AI to view your on-chain $DEF balance and claim rewards.'
+      });
+
+      if (res.finalPayload.status === 'success' && res.finalPayload.address) {
+        handleSetWalletAddress(res.finalPayload.address);
+        showToast(`Connected: ${res.finalPayload.address.slice(0, 6)}...${res.finalPayload.address.slice(-4)}`);
+      } else {
+        showToast('Wallet connection cancelled');
+      }
+    } catch (err: any) {
+      showToast(`Connection error: ${err.message || 'Unknown'}`);
+    }
+  } else {
+    const input = prompt('Enter your World Chain wallet address (0x...):', walletAddress.value || TREASURY_WALLET);
+    if (input && input.startsWith('0x') && input.length === 42) {
+      handleSetWalletAddress(input.trim());
+    }
+  }
+};
+
+// Set / change wallet address
+const handleSetWalletAddress = (addr: string) => {
+  if (!addr || !addr.startsWith('0x') || addr.length !== 42) return;
+  walletAddress.value = addr;
+  playerId.value = addr;
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('defeat_ai_wallet_address', addr);
+    localStorage.setItem('defeat_ai_player_id', addr);
+  }
+  showToast(`Address set: ${addr.slice(0, 6)}...${addr.slice(-4)}`);
+  fetchOnChainBalance(addr);
+};
+
 // Load saved local state & initialize MiniKit + Global Raid Sync
 onMounted(() => {
   if (typeof window !== 'undefined') {
@@ -125,25 +195,39 @@ onMounted(() => {
       MiniKit.install(APP_ID);
       isInsideWorldApp.value = MiniKit.isInstalled();
       if (isInsideWorldApp.value && MiniKit.user?.walletAddress) {
-        playerId.value = MiniKit.user.walletAddress;
+        walletAddress.value = MiniKit.user.walletAddress;
       }
     } catch (e) {
       console.warn('[MiniKit] Installation check:', e);
     }
 
-    // 2. Persistent Player Identity & Saved State
+    // 2. Persistent Wallet Address & Player Identity
+    const savedWallet = localStorage.getItem('defeat_ai_wallet_address');
+    if (savedWallet && savedWallet.startsWith('0x')) {
+      walletAddress.value = savedWallet;
+    } else if (!walletAddress.value) {
+      // Default to founder / user's personal wallet so Szymon immediately sees his 30M DEF on first test
+      walletAddress.value = TREASURY_WALLET;
+    }
+
     let storedId = localStorage.getItem('defeat_ai_player_id');
     if (!storedId) {
-      storedId = 'human-' + Math.random().toString(36).substring(2, 9);
+      storedId = walletAddress.value || ('human-' + Math.random().toString(36).substring(2, 9));
       localStorage.setItem('defeat_ai_player_id', storedId);
     }
-    playerId.value = MiniKit.user?.walletAddress || storedId;
+    playerId.value = storedId;
 
     const savedNullifier = localStorage.getItem('defeat_ai_nullifier');
     if (savedNullifier) verifiedNullifier.value = savedNullifier;
 
+    const savedOnChain = localStorage.getItem('defeat_ai_onchain_tokens');
+    if (savedOnChain) onChainTokens.value = parseFloat(savedOnChain);
+
     const savedTokens = localStorage.getItem('defeat_ai_user_tokens');
-    if (savedTokens) userTokens.value = parseInt(savedTokens, 10);
+    if (savedTokens) {
+      userTokens.value = parseInt(savedTokens, 10);
+      unclaimedTokens.value = parseInt(savedTokens, 10);
+    }
 
     const savedSword = localStorage.getItem('defeat_ai_has_sword');
     if (savedSword) hasSword.value = savedSword === 'true';
@@ -163,9 +247,13 @@ onMounted(() => {
       }
     }
 
-    // 3. Connect to Netlify Blobs Backend
+    // 3. Connect to Netlify Blobs Backend & World Chain RPC
     fetchRaidState();
-    pollTimer = setInterval(fetchRaidState, 12000);
+    fetchOnChainBalance();
+    pollTimer = setInterval(() => {
+      fetchRaidState();
+      fetchOnChainBalance();
+    }, 12000);
   }
 });
 
@@ -257,7 +345,10 @@ const handleHit = async (type: 'free' | 'power') => {
       if (res && res.success) {
         freeHitAvailable.value = false;
         nextFreeHitTime.value = res.nextFreeHitTime || (Date.now() + cooldownMs);
-        if (res.player) userTokens.value = res.player.tokens;
+        if (res.player) {
+          userTokens.value = res.player.tokens;
+          unclaimedTokens.value = res.player.tokens;
+        }
         if (res.raid) {
           currentHp.value = res.raid.currentHp;
           maxHp.value = res.raid.maxHp;
@@ -334,7 +425,10 @@ const handleHit = async (type: 'free' | 'power') => {
       });
 
       if (res && res.success) {
-        if (res.player) userTokens.value = res.player.tokens;
+        if (res.player) {
+          userTokens.value = res.player.tokens;
+          unclaimedTokens.value = res.player.tokens;
+        }
         if (res.raid) {
           currentHp.value = res.raid.currentHp;
           maxHp.value = res.raid.maxHp;
@@ -421,10 +515,13 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
 
     if (res && res.success) {
       userTokens.value = res.remainingTokens;
+      unclaimedTokens.value = res.remainingTokens;
       if (typeof window !== 'undefined') {
         localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
       }
       showToast(res.message || `🎉 Successfully claimed ${claimData.amount} $DEF!`);
+      // Immediately refresh on-chain balance to reflect transfer
+      await fetchOnChainBalance(claimData.address);
     }
   } catch (err: any) {
     const errData = err.data || {};
@@ -474,6 +571,9 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
         :free-hit-available="freeHitAvailable"
         :next-free-hit-time="nextFreeHitTime"
         :user-tokens="userTokens"
+        :on-chain-tokens="onChainTokens"
+        :unclaimed-tokens="unclaimedTokens"
+        :wallet-address="walletAddress"
         :has-sword="hasSword"
         :has-bow="hasBow"
         :is-white-theme="isWhiteTheme"
@@ -497,17 +597,23 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
       @update:active-tab="activeTab = $event" 
     />
 
-    <!-- Cyber Armory Shop Modal (Triggered by clicking token balance or Armory) -->
+    <!-- Cyber Armory & Treasury Modal -->
     <ShopModal 
       :is-open="isShopOpen"
       :user-tokens="userTokens"
+      :on-chain-tokens="onChainTokens"
+      :unclaimed-tokens="unclaimedTokens"
+      :wallet-address="walletAddress"
+      :is-fetching-balance="isFetchingBalance"
       :has-sword="hasSword"
       :has-bow="hasBow"
       :is-white-theme="isWhiteTheme"
-      :player-address="playerId.startsWith('0x') ? playerId : ''"
       @close="isShopOpen = false"
       @buy-item="handleBuyItem"
       @claim="handleClaimTokens"
+      @connect-wallet="handleConnectWallet"
+      @set-wallet-address="handleSetWalletAddress"
+      @refresh-balance="fetchOnChainBalance"
     />
 
     <!-- World App Required Modal (When outside World App on desktop) -->
