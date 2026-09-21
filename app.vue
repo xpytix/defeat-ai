@@ -10,6 +10,7 @@ import ShopModal from '~/components/ShopModal.vue';
 const APP_ID = 'app_00e63093c3a6d36ace61c9b587ffcdf8';
 const TREASURY_WALLET = '0x435cf6a63fbc5bc8f4d2b8d0dd02ab16ac45e9aa';
 const DEF_TOKEN_CONTRACT = '0xb767B50e80084330Fe2bF5F2C3CA5d6E0b73B6f6';
+const DISTRIBUTOR_CONTRACT = '0x91E058c066072cFC722C057b25eF514fe4dA17E5';
 const UNISWAP_POOL_URL = 'https://app.uniswap.org/swap?chain=worldchain&inputCurrency=0x2cFc85d8E48F8EAB294be644d9E25C3030863003&outputCurrency=0xb767B50e80084330Fe2bF5F2C3CA5d6E0b73B6f6';
 const WORLDSCAN_TOKEN_URL = 'https://worldscan.org/token/0xb767B50e80084330Fe2bF5F2C3CA5d6E0b73B6f6';
 
