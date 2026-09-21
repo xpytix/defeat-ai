@@ -448,31 +448,83 @@ const formatTokens = (val: number) => {
         }"
       >
 
-        <!-- FLOATING AUDIO SPEAKER BUTTON DIRECTLY NEXT TO THE BOSS -->
-        <button
-          @click.stop="toggleAudio"
-          class="absolute top-2 right-2 sm:top-4 sm:right-4 z-30 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full backdrop-blur-md border transition-all duration-300 active:scale-95 cursor-pointer shadow-lg select-none"
-          :class="isAudioPlaying 
-            ? (isWhiteTheme 
-                ? 'bg-black text-white border-black/30 shadow-md ring-1 ring-black/20' 
-                : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.5)] ring-1 ring-cyan-500/40')
-            : (isWhiteTheme 
-                ? 'bg-white/90 text-zinc-600 hover:text-black border-black/10 shadow-sm' 
-                : 'bg-black/60 text-zinc-400 hover:text-white border-white/10 hover:border-white/20')"
-          :title="isAudioPlaying ? 'Mute Soundtrack' : 'Play Boss Combat Soundtrack'"
-        >
-          <Volume2 v-if="isAudioPlaying" class="w-3.5 h-3.5 animate-pulse text-current" />
-          <VolumeX v-else class="w-3.5 h-3.5 text-current opacity-70" />
-          <span class="text-[9px] font-mono font-bold tracking-wider uppercase">
-            {{ isAudioPlaying ? 'BGM ON' : 'BGM' }}
-          </span>
-          <!-- Dynamic equalizer bars when active -->
-          <span v-if="isAudioPlaying" class="flex items-end gap-0.5 h-2.5 ml-0.5">
-            <span class="w-0.5 h-full bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-            <span class="w-0.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-            <span class="w-0.5 h-full bg-current rounded-full animate-bounce"></span>
-          </span>
-        </button>
+        <!-- FLOATING CONTROLS & EQUIPMENT STACK (TOP-RIGHT CORNER OF BOSS CARD) -->
+        <div class="absolute top-2 right-2 sm:top-4 sm:right-4 z-30 flex flex-col items-end gap-2 pointer-events-auto">
+          
+          <!-- Audio Speaker Button -->
+          <button
+            @click.stop="toggleAudio"
+            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full backdrop-blur-md border transition-all duration-300 active:scale-95 cursor-pointer shadow-lg select-none"
+            :class="isAudioPlaying 
+              ? (isWhiteTheme 
+                  ? 'bg-black text-white border-black/30 shadow-md ring-1 ring-black/20' 
+                  : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.5)] ring-1 ring-cyan-500/40')
+              : (isWhiteTheme 
+                  ? 'bg-white/90 text-zinc-600 hover:text-black border-black/10 shadow-sm' 
+                  : 'bg-black/60 text-zinc-400 hover:text-white border-white/10 hover:border-white/20')"
+            :title="isAudioPlaying ? 'Mute Soundtrack' : 'Play Boss Combat Soundtrack'"
+          >
+            <Volume2 v-if="isAudioPlaying" class="w-3.5 h-3.5 animate-pulse text-current" />
+            <VolumeX v-else class="w-3.5 h-3.5 text-current opacity-70" />
+            <span class="text-[9px] font-mono font-bold tracking-wider uppercase">
+              {{ isAudioPlaying ? 'BGM ON' : 'BGM' }}
+            </span>
+            <!-- Dynamic equalizer bars when active -->
+            <span v-if="isAudioPlaying" class="flex items-end gap-0.5 h-2.5 ml-0.5">
+              <span class="w-0.5 h-full bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+              <span class="w-0.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+              <span class="w-0.5 h-full bg-current rounded-full animate-bounce"></span>
+            </span>
+          </button>
+
+          <!-- FLOATING EQUIPMENT ICONS (BELOW SPEAKER, CLEAN WITHOUT TEXT) -->
+          <div class="flex flex-col gap-1.5 items-end">
+            
+            <!-- SWORD EQUIPMENT ICON -->
+            <button
+              @click.stop="emit('openShop')"
+              class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl backdrop-blur-md border flex items-center justify-center transition-all active:scale-90 shadow-md relative group cursor-pointer"
+              :class="hasSword 
+                ? (isWhiteTheme 
+                    ? 'bg-black text-emerald-400 border-black ring-1 ring-emerald-500/40 shadow-sm' 
+                    : 'bg-emerald-950/60 text-emerald-400 border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.35)] ring-1 ring-emerald-500/50') 
+                : (isWhiteTheme 
+                    ? 'bg-white/80 text-zinc-400 border-black/10 hover:border-black/30 hover:text-zinc-700' 
+                    : 'bg-black/60 text-zinc-500 border-white/10 hover:border-white/20 hover:text-zinc-300')"
+              :title="hasSword ? 'Quantum Plasma Blade (Equipped · 2x Damage & DEF) - Click for Equipment' : 'Plasma Blade (Armory) - Click to view Equipment'"
+            >
+              <Swords class="w-4 h-4 sm:w-4.5 sm:h-4.5 transition-transform group-hover:scale-110" />
+              <!-- Small Green Equipped Indicator Dot -->
+              <span 
+                v-if="hasSword" 
+                class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-black shadow-sm"
+              />
+            </button>
+
+            <!-- BOW EQUIPMENT ICON -->
+            <button
+              @click.stop="emit('openShop')"
+              class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl backdrop-blur-md border flex items-center justify-center transition-all active:scale-90 shadow-md relative group cursor-pointer"
+              :class="hasBow 
+                ? (isWhiteTheme 
+                    ? 'bg-black text-violet-400 border-black ring-1 ring-violet-500/40 shadow-sm' 
+                    : 'bg-violet-950/60 text-violet-400 border-violet-500/50 shadow-[0_0_12px_rgba(139,92,246,0.35)] ring-1 ring-violet-500/50') 
+                : (isWhiteTheme 
+                    ? 'bg-white/80 text-zinc-400 border-black/10 hover:border-black/30 hover:text-zinc-700' 
+                    : 'bg-black/60 text-zinc-500 border-white/10 hover:border-white/20 hover:text-zinc-300')"
+              :title="hasBow ? 'Tachyon Chrono-Bow (Equipped · -50% Cooldown) - Click for Equipment' : 'Chrono-Bow (Armory) - Click to view Equipment'"
+            >
+              <Zap class="w-4 h-4 sm:w-4.5 sm:h-4.5 transition-transform group-hover:scale-110" />
+              <!-- Small Violet Equipped Indicator Dot -->
+              <span 
+                v-if="hasBow" 
+                class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-violet-400 border-2 border-black shadow-sm"
+              />
+            </button>
+
+          </div>
+
+        </div>
 
         <!-- The Boss Image: Clean, Crisp & Immediate (No Fade Lag or Gradient Clipping) -->
         <div class="relative w-full h-full flex items-center justify-center overflow-visible">
@@ -570,26 +622,6 @@ const formatTokens = (val: number) => {
 
     <!-- WIDER ACTION BUTTONS (ALWAYS VISIBLE ABOVE BOTTOM NAV ON ANY SCREEN) -->
     <div class="w-full shrink-0 max-w-[420px] sm:max-w-[480px] md:max-w-[540px] space-y-2 mt-2 px-1 z-30">
-      
-      <!-- ACTIVE GEAR PERKS PILL (If Sword or Bow Owned) -->
-      <div v-if="hasSword || hasBow" class="flex items-center justify-center gap-2 pb-0.5 flex-wrap">
-        <button 
-          v-if="hasSword" 
-          @click="emit('openShop')"
-          class="flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-cyan-500/40 bg-cyan-500/10 text-cyan-400 font-mono text-[10px] font-bold shadow-sm cursor-pointer hover:bg-cyan-500/20 active:scale-95 transition-all"
-        >
-          <Swords class="w-3 h-3" />
-          <span>Plasma Blade (2x DMG & Spoils)</span>
-        </button>
-        <button 
-          v-if="hasBow" 
-          @click="emit('openShop')"
-          class="flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-violet-500/40 bg-violet-500/10 text-violet-400 font-mono text-[10px] font-bold shadow-sm cursor-pointer hover:bg-violet-500/20 active:scale-95 transition-all"
-        >
-          <Zap class="w-3 h-3" />
-          <span>Chrono-Bow (12h Cooldown)</span>
-        </button>
-      </div>
 
       <!-- FREE DAILY STRIKE (ATTACK + CLAIM TOKENS) -->
       <button 

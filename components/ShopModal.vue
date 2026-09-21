@@ -67,12 +67,12 @@ const formatTokens = (val: number) => {
         <div class="flex items-center gap-2">
           <span 
             class="text-xs font-mono font-black px-2 py-0.5 rounded border tracking-widest uppercase"
-            :class="isWhiteTheme ? 'bg-black text-white border-black' : 'bg-white/10 text-white border-white/20'"
+            :class="isWhiteTheme ? 'bg-black text-white border-black' : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'"
           >
-            SHOP
+            EQUIPMENT
           </span>
           <span class="text-xs font-mono tracking-wider font-bold uppercase opacity-80">
-            Resistance Armory
+            Armory & Active Gear
           </span>
         </div>
 
@@ -118,7 +118,11 @@ const formatTokens = (val: number) => {
       </div>
 
       <!-- Items List (Clean & Minimalist matching app theme) -->
-      <div class="p-3.5 space-y-3 overflow-y-auto">
+      <div class="p-3.5 space-y-2.5 overflow-y-auto">
+        <div class="text-[10px] font-mono uppercase tracking-widest opacity-60 px-1 font-bold flex items-center justify-between">
+          <span>Active Equipment Slots</span>
+          <span>World Chain</span>
+        </div>
         
         <!-- ITEM 1: QUANTUM PLASMA BLADE -->
         <div 
