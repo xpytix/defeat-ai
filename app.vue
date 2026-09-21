@@ -9,12 +9,12 @@ import ShopModal from '~/components/ShopModal.vue';
 const activeTab = ref<'boss' | 'characters'>('boss');
 const toastMessage = ref<string | null>(null);
 
-// User Token Balance ($DEFEAT) & WLD Balance
+// User Token Balance ($DEF) & WLD Balance
 const userTokens = ref(40);
 const userWld = ref(250); // Pre-funded with 250 WLD for immediate testing
 
 // Armory & Weapon Inventory
-const hasSword = ref(false); // Quantum Plasma Blade: 2x daily strike damage (-2 HP) & 2x tokens (+40 $DEFEAT)
+const hasSword = ref(false); // Quantum Plasma Blade: 2x daily strike damage (-2 HP) & 2x tokens (+40 $DEF)
 const hasBow = ref(false);   // Tachyon Chrono-Bow: -50% cooldown (12h instead of 24h)
 const isShopOpen = ref(false);
 
@@ -107,7 +107,7 @@ const handleFight = (level: number) => {
   activeTab.value = 'boss';
 };
 
-// Handle Hit from BossView (Flat 20 $DEFEAT per strike, or 40 if Plasma Blade equipped)
+// Handle Hit from BossView (Flat 20 $DEF per strike, or 40 if Plasma Blade equipped)
 const handleHit = (type: 'free' | 'power') => {
   if (type === 'free') {
     if (!freeHitAvailable.value) {
@@ -120,7 +120,7 @@ const handleHit = (type: 'free' | 'power') => {
     const expiry = Date.now() + cooldownHours * 60 * 60 * 1000;
     nextFreeHitTime.value = expiry;
 
-    // Daily strike: 2x tokens if sword equipped (+40), else +20 $DEFEAT
+    // Daily strike: 2x tokens if sword equipped (+40), else +20 $DEF
     const tokensEarned = hasSword.value ? 40 : 20;
     userTokens.value += tokensEarned;
 
@@ -132,8 +132,8 @@ const handleHit = (type: 'free' | 'power') => {
       localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
     }
     showToast(hasSword.value 
-      ? '⚔️ Plasma Strike (-2 HP) · Claimed +40 $DEFEAT' 
-      : '💥 Strike confirmed (-1 HP) · Claimed +20 $DEFEAT');
+      ? '⚔️ Plasma Strike (-2 HP) · Claimed +40 $DEF' 
+      : '💥 Strike confirmed (-1 HP) · Claimed +20 $DEF');
 
     // Deduct HP
     if (currentHp.value > 0) {
@@ -158,7 +158,7 @@ const handleHit = (type: 'free' | 'power') => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
     }
-    showToast('⚡ Power Strike confirmed (-1 HP) · +20 $DEFEAT');
+    showToast('⚡ Power Strike confirmed (-1 HP) · +20 $DEF');
 
     if (currentHp.value > 0) {
       currentHp.value -= 1;

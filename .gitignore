@@ -16,3 +16,4 @@ dist/
 # OS & Logs
 .DS_Store
 *.log
+scratch/

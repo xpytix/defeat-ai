@@ -47,7 +47,7 @@ const isNext = (level: number) => getBossStatus(level) === 'next';
 const isDefeated = (level: number) => getBossStatus(level) === 'defeated';
 const isActive = (level: number) => getBossStatus(level) === 'active';
 
-// Flat rate: 20 $DEFEAT per strike across all levels
+// Flat rate: 20 $DEF per strike across all levels
 const bosses = ref<CharacterBoss[]>([
   {
     level: 1,
@@ -374,7 +374,7 @@ onUnmounted(() => {
             </span>
             <span class="font-bold flex items-center gap-1" :class="isUnknown(selectedBoss.level) ? 'text-zinc-400' : 'text-amber-500'">
               <Trophy class="w-3.5 h-3.5" />
-              {{ isUnknown(selectedBoss.level) ? '??? $DEFEAT' : `${selectedBoss.rewardPool.toLocaleString()} $DEFEAT` }}
+              {{ isUnknown(selectedBoss.level) ? '??? $DEF' : `${selectedBoss.rewardPool.toLocaleString()} $DEF` }}
             </span>
           </div>
         </div>
@@ -403,7 +403,7 @@ onUnmounted(() => {
       >
         <span :class="isWhiteTheme ? 'text-zinc-600 font-medium' : 'text-zinc-400'">Reward Rate:</span>
         <span class="font-black text-amber-500">
-          {{ isUnknown(selectedBoss.level) ? '??? $DEFEAT / strike (CLASSIFIED)' : '+20 $DEFEAT / strike' }}
+          {{ isUnknown(selectedBoss.level) ? '??? $DEF / strike (CLASSIFIED)' : '+20 $DEF / strike' }}
         </span>
       </div>
 
@@ -451,7 +451,7 @@ onUnmounted(() => {
             </div>
             <div class="text-right">
               <div class="font-bold text-amber-500 text-xs">+{{ c.rewardEarned }}</div>
-              <div class="text-[9px] uppercase" :class="isWhiteTheme ? 'text-zinc-400' : 'text-zinc-500'">$DEFEAT</div>
+              <div class="text-[9px] uppercase" :class="isWhiteTheme ? 'text-zinc-400' : 'text-zinc-500'">$DEF</div>
             </div>
           </div>
         </div>

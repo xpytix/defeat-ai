@@ -276,6 +276,23 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
     navigator.vibrate(type === 'power' ? [25, 40, 25] : 20);
   }
 };
+
+// Compact formatter for token count so large numbers never break layout
+const formatTokens = (val: number) => {
+  if (val >= 1_000_000_000) {
+    return (val / 1_000_000_000).toFixed(val % 1_000_000_000 === 0 ? 0 : 1) + 'B';
+  }
+  if (val >= 1_000_000) {
+    return (val / 1_000_000).toFixed(val % 1_000_000 === 0 ? 0 : 1) + 'M';
+  }
+  if (val >= 100_000) {
+    return (val / 1_000).toFixed(0) + 'k';
+  }
+  if (val >= 10_000) {
+    return (val / 1_000).toFixed(val % 1_000 === 0 ? 0 : 1) + 'k';
+  }
+  return val.toLocaleString();
+};
 </script>
 
 <template>
@@ -291,12 +308,12 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
     <div class="w-full shrink-0 flex flex-col space-y-1 pt-1 px-1">
       
       <!-- Upper Status Row -->
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-1.5 sm:gap-2">
+      <div class="flex items-center justify-between gap-2 min-w-0">
+        <div class="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-1 overflow-hidden">
           <button 
             @click="emit('selectLevel', Math.max(1, level - 1))"
             :disabled="level <= 1"
-            class="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-20 text-sm font-bold transition-all active:scale-95"
+            class="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center disabled:opacity-20 text-sm font-bold transition-all active:scale-95"
             :class="isWhiteTheme 
               ? 'text-zinc-700 hover:text-black bg-black/5 hover:bg-black/10 border border-black/10 disabled:hover:text-zinc-700' 
               : 'text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 disabled:hover:text-zinc-400'"
@@ -305,7 +322,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
             ‹
           </button>
           <span 
-            class="text-xs font-mono font-black px-2.5 py-1 rounded-md border tracking-wider"
+            class="shrink-0 text-xs font-mono font-black px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md border tracking-wider"
             :class="level === 8 
               ? (isWhiteTheme ? 'text-amber-900 bg-amber-200 border-amber-400 shadow-sm' : 'text-amber-300 bg-amber-400/20 border-amber-400/40') 
               : (isWhiteTheme ? 'text-zinc-950 bg-black/5 border-black/15' : 'text-rose-500 bg-rose-500/10 border-rose-500/20')"
@@ -315,7 +332,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           <button 
             @click="emit('selectLevel', Math.min(8, level + 1))"
             :disabled="level >= 8"
-            class="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-20 text-sm font-bold transition-all active:scale-95"
+            class="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center disabled:opacity-20 text-sm font-bold transition-all active:scale-95"
             :class="isWhiteTheme 
               ? 'text-zinc-700 hover:text-black bg-black/5 hover:bg-black/10 border border-black/10 disabled:hover:text-zinc-700' 
               : 'text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 disabled:hover:text-zinc-400'"
@@ -324,7 +341,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
             ›
           </button>
           <span 
-            class="text-xs sm:text-sm font-mono tracking-widest font-black uppercase truncate max-w-[120px] sm:max-w-xs ml-0.5"
+            class="text-xs sm:text-sm font-mono tracking-widest font-black uppercase truncate min-w-0 ml-0.5"
             :class="isWhiteTheme ? 'text-zinc-950' : 'text-zinc-200'"
           >
             {{ bossName }}
@@ -333,7 +350,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           <!-- Header Speaker Button next to Boss Name -->
           <button
             @click.stop="toggleAudio"
-            class="w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-90 ml-1 border"
+            class="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center transition-all active:scale-90 ml-0.5 border"
             :class="isAudioPlaying 
               ? (isWhiteTheme ? 'bg-black text-white border-black shadow-sm' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.4)]') 
               : (isWhiteTheme ? 'bg-black/5 text-zinc-500 hover:text-black border-black/10' : 'bg-white/5 text-zinc-400 hover:text-white border-white/10')"
@@ -347,14 +364,14 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
         <!-- Token Balance (Click to Open Armory / Shop) -->
         <div 
           @click="emit('openShop')"
-          class="flex items-center gap-1.5 px-3 py-1 rounded-full text-amber-500 font-bold shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95 group"
+          class="shrink-0 flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 rounded-full text-amber-500 font-bold shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95 group select-none"
           :class="isWhiteTheme ? 'bg-black/[0.04] border border-black/10 hover:bg-black/[0.08]' : 'bg-white/[0.05] border border-white/10 hover:bg-white/[0.1]'"
-          title="Open Cyber Armory Store"
+          :title="`Balance: ${userTokens.toLocaleString()} $DEF (Click to open Shop)`"
         >
-          <Coins class="w-3.5 h-3.5 text-amber-500 group-hover:rotate-12 transition-transform" />
-          <span class="text-xs font-mono font-black">{{ userTokens.toLocaleString() }}</span>
-          <span class="text-[9px] font-mono font-normal" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">$DEFEAT</span>
-          <span class="text-[9px] px-1 py-0.2 rounded font-mono font-bold ml-0.5"
+          <Coins class="w-3.5 h-3.5 text-amber-500 group-hover:rotate-12 transition-transform shrink-0" />
+          <span class="text-xs font-mono font-black whitespace-nowrap tabular-nums">{{ formatTokens(userTokens) }}</span>
+          <span class="text-[9px] font-mono font-normal shrink-0" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">$DEF</span>
+          <span class="text-[9px] px-1 py-0.2 rounded font-mono font-bold ml-0.5 shrink-0"
             :class="isWhiteTheme ? 'bg-black/10 text-black' : 'bg-amber-500/20 text-amber-400'"
           >+</span>
         </div>
@@ -583,7 +600,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           ? 'bg-black text-white hover:bg-zinc-800 shadow-[0_4px_20px_rgba(0,0,0,0.2)] border border-black' 
           : 'bg-gradient-to-r from-white via-zinc-100 to-zinc-200 text-black hover:bg-white shadow-[0_0_20px_rgba(255,255,255,0.2)] border border-white'"
       >
-        <span>💥 {{ hasSword ? 'PLASMA STRIKE (-2 HP)' : 'STRIKE & CLAIM' }} (+{{ hasSword ? 40 : 20 }} $DEFEAT)</span>
+        <span>💥 {{ hasSword ? 'PLASMA STRIKE (-2 HP)' : 'STRIKE & CLAIM' }} (+{{ hasSword ? 40 : 20 }} $DEF)</span>
       </button>
 
       <!-- COUNTDOWN TIMER IF ALREADY CLAIMED TODAY -->
@@ -619,7 +636,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
       >
         <div class="flex items-center gap-2">
           <Zap class="w-3.5 h-3.5 text-cyan-500 fill-cyan-500" />
-          <span class="text-[11px] sm:text-xs font-mono tracking-wider font-extrabold uppercase">Power Strike (+20 $DEFEAT)</span>
+          <span class="text-[11px] sm:text-xs font-mono tracking-wider font-extrabold uppercase">Power Strike (+20 $DEF)</span>
         </div>
         <span 
           class="text-[11px] sm:text-xs font-mono font-black px-2 py-0.5 rounded-md border"
