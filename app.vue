@@ -24,7 +24,7 @@ const showToast = (msg: string) => {
   toastMessage.value = msg;
   setTimeout(() => {
     if (toastMessage.value === msg) toastMessage.value = null;
-  }, 2500);
+  }, 2200);
 };
 
 // Load saved local state
@@ -115,37 +115,33 @@ const handleHit = (type: 'free' | 'power') => {
     <div class="absolute top-0 left-1/2 -translate-x-1/2 w-80 h-32 bg-cyan-500/10 rounded-full blur-[90px] pointer-events-none -z-10" />
 
     <!-- Sleek Minimal Floating Toast -->
-    <transition name="fade">
-      <div v-if="toastMessage" class="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-        <div class="px-4 py-2 bg-zinc-900/95 border border-white/10 rounded-full shadow-2xl backdrop-blur-xl text-center text-xs font-mono font-bold tracking-wider text-zinc-200">
-          {{ toastMessage }}
-        </div>
+    <div v-if="toastMessage" class="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+      <div class="px-4 py-2 bg-zinc-900/95 border border-white/10 rounded-full shadow-2xl backdrop-blur-xl text-center text-xs font-mono font-bold tracking-wider text-zinc-200">
+        {{ toastMessage }}
       </div>
-    </transition>
+    </div>
 
     <!-- Clean Safe-Area Header Spacer -->
     <div class="pt-safe shrink-0" />
 
-    <!-- Main View Switcher -->
+    <!-- Main View Switcher (Instant crisp switching, zero fade lag) -->
     <main class="flex-1 flex flex-col overflow-hidden relative">
-      <transition name="fade" mode="out-in">
-        <BossView 
-          v-if="activeTab === 'boss'" 
-          :current-hp="currentHp"
-          :max-hp="maxHp"
-          :level="currentBossLevel"
-          :boss-name="bossName"
-          :free-hit-available="freeHitAvailable"
-          :next-free-hit-time="nextFreeHitTime"
-          :user-tokens="userTokens"
-          @hit="handleHit"
-        />
-        <CharactersView 
-          v-else-if="activeTab === 'characters'" 
-          :current-level="currentBossLevel"
-          @fight="activeTab = 'boss'"
-        />
-      </transition>
+      <BossView 
+        v-if="activeTab === 'boss'" 
+        :current-hp="currentHp"
+        :max-hp="maxHp"
+        :level="currentBossLevel"
+        :boss-name="bossName"
+        :free-hit-available="freeHitAvailable"
+        :next-free-hit-time="nextFreeHitTime"
+        :user-tokens="userTokens"
+        @hit="handleHit"
+      />
+      <CharactersView 
+        v-else-if="activeTab === 'characters'" 
+        :current-level="currentBossLevel"
+        @fight="activeTab = 'boss'"
+      />
     </main>
 
     <!-- Minimalist Bottom Navigation -->
@@ -156,15 +152,3 @@ const handleHit = (type: 'free' | 'power') => {
 
   </div>
 </template>
-
-<style>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>
