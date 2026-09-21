@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 /**
  * @title DefeatAiDistributor
- * @notice Skarbiec dystrybucji nagród $DEF z twardymi limitami dziennymi i podpisami EIP-712.
+ * @notice Skarbiec dystrybucji nagród $DEF z twardymi limitami on-chain (500 DEF / gracz, 100k globalnie).
  */
 interface IERC20 {
     function transfer(address to, uint256 value) external returns (bool);
@@ -28,6 +28,7 @@ contract DefeatAiDistributor {
     bytes32 public constant CLAIM_TYPEHASH = keccak256("ClaimVoucher(address recipient,uint256 amount,uint256 nonce,uint256 expiry)");
 
     event Claimed(address indexed recipient, uint256 amount, uint256 nonce);
+    event RewardDistributed(address indexed recipient, uint256 amount);
     event LimitsUpdated(uint256 newPlayerLimit, uint256 newGlobalLimit);
     event TrustedSignerUpdated(address indexed newSigner);
     event Paused(bool isPaused);
@@ -36,6 +37,11 @@ contract DefeatAiDistributor {
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner");
+        _;
+    }
+
+    modifier onlyAuthorized() {
+        require(msg.sender == owner || msg.sender == trustedSigner, "Not authorized");
         _;
     }
 
@@ -63,7 +69,26 @@ contract DefeatAiDistributor {
     }
 
     /**
-     * @notice Odbiór nagrody za pomocą vouchera EIP-712 wygenerowanego przez grę
+     * @notice Bezpośrednia wypłata nagrody przez autoryzowany serwer gry (z zachowaniem limitów on-chain!)
+     */
+    function distributeReward(address recipient, uint256 amount) external onlyAuthorized whenNotPaused {
+        require(recipient != address(0), "Invalid recipient");
+        require(amount > 0, "Amount must be > 0");
+
+        uint256 currentDay = block.timestamp / DAILY_WINDOW;
+        require(playerClaimedInDay[recipient][currentDay] + amount <= playerDailyLimit, "Exceeds daily player limit (500 DEF)");
+        require(globalClaimedInDay[currentDay] + amount <= globalDailyLimit, "Exceeds daily global limit (100k DEF)");
+
+        playerClaimedInDay[recipient][currentDay] += amount;
+        globalClaimedInDay[currentDay] += amount;
+
+        require(defToken.transfer(recipient, amount), "Token transfer failed");
+
+        emit RewardDistributed(recipient, amount);
+    }
+
+    /**
+     * @notice Odbiór nagrody przez gracza z kryptograficznym voucherem EIP-712
      */
     function claim(
         address recipient,
@@ -76,23 +101,21 @@ contract DefeatAiDistributor {
         require(!usedNonces[recipient][nonce], "Nonce already used");
         require(amount > 0, "Amount must be > 0");
 
-        // 1. Weryfikacja podpisu EIP-712 z backendu gry
+        // Weryfikacja podpisu EIP-712
         bytes32 structHash = keccak256(abi.encode(CLAIM_TYPEHASH, recipient, amount, nonce, expiry));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
         address signer = recoverSigner(digest, signature);
         require(signer == trustedSigner, "Invalid signature");
 
-        // 2. Weryfikacja twardych limitów dziennych
+        // Weryfikacja limitów on-chain
         uint256 currentDay = block.timestamp / DAILY_WINDOW;
         require(playerClaimedInDay[recipient][currentDay] + amount <= playerDailyLimit, "Exceeds daily player limit (500 DEF)");
         require(globalClaimedInDay[currentDay] + amount <= globalDailyLimit, "Exceeds daily global limit (100k DEF)");
 
-        // 3. Aktualizacja stanu przed transferem (ochrona przed reentrancy)
         usedNonces[recipient][nonce] = true;
         playerClaimedInDay[recipient][currentDay] += amount;
         globalClaimedInDay[currentDay] += amount;
 
-        // 4. Wypłata tokenów ze skarbca
         require(defToken.transfer(recipient, amount), "Token transfer failed");
 
         emit Claimed(recipient, amount, nonce);
@@ -115,7 +138,7 @@ contract DefeatAiDistributor {
         return ecrecover(digest, v, r, s);
     }
 
-    // --- FUNKCJE ADMINISTRACYJNE (Tylko Twój portfel) ---
+    // --- FUNKCJE DLA WŁAŚCICIELA (Twój portfel) ---
 
     function pause() external onlyOwner {
         paused = true;
@@ -145,9 +168,6 @@ contract DefeatAiDistributor {
         owner = newOwner;
     }
 
-    /**
-     * @notice Awaryjne wycofanie tokenów ze skarbca z powrotem na portfel Ownera
-     */
     function emergencyWithdraw(address tokenAddress, uint256 amount) external onlyOwner {
         require(IERC20(tokenAddress).transfer(owner, amount), "Withdraw failed");
         emit EmergencyWithdrawn(tokenAddress, owner, amount);
