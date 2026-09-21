@@ -37,7 +37,6 @@ export interface PlayerProfile {
   nullifierHash?: string;
   address?: string;
   tokens: number;
-  wld: number;
   hasSword: boolean;
   hasBow: boolean;
   lastFreeHitTime: number;
@@ -206,7 +205,6 @@ export async function getPlayerProfile(playerId: string, nullifierHash?: string)
     id: playerId,
     nullifierHash,
     tokens: 0,
-    wld: 250,
     hasSword: false,
     hasBow: false,
     lastFreeHitTime: 0,
