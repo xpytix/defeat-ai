@@ -1,30 +1,39 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { MiniKit, VerificationLevel, Tokens, tokenToDecimals } from '@worldcoin/minikit-js';
 import BossView from '~/components/BossView.vue';
 import CharactersView from '~/components/CharactersView.vue';
 import BottomNav from '~/components/BottomNav.vue';
 import ShopModal from '~/components/ShopModal.vue';
 
+// App & Treasury Configuration
+const APP_ID = 'app_00e63093c3a6d36ace61c9b587ffcdf8';
+const TREASURY_WALLET = '0xB42b59446AF0F39bb3b91D7CC50327997484742e';
+
 // Navigation State
 const activeTab = ref<'boss' | 'characters'>('boss');
 const toastMessage = ref<string | null>(null);
 
-// User Player ID & Identity
-const playerId = ref('anon-human');
+// User Player ID & World ID Identity
+const playerId = ref('human-stryker');
+const verifiedNullifier = ref<string | null>(null);
+const isInsideWorldApp = ref(false);
+const showWorldAppModal = ref(false);
+const isVerifying = ref(false);
 
-// User Token Balance ($DEF) & WLD Balance
-const userTokens = ref(40);
-const userWld = ref(250); // Pre-funded with 250 WLD for immediate testing
+// User Token Balance ($DEF) & WLD Balance (Pristine clean start)
+const userTokens = ref(0);
+const userWld = ref(250); // Pre-funded balance for testing
 
 // Armory & Weapon Inventory
 const hasSword = ref(false); // Quantum Plasma Blade: 2x daily strike damage (-2 HP) & 2x tokens (+40 $DEF)
 const hasBow = ref(false);   // Tachyon Chrono-Bow: -50% cooldown (12h instead of 24h)
 const isShopOpen = ref(false);
 
-// Game State
+// Game State (Starts pristine at Level 1 AutoCorrect 50/50 HP)
 const currentBossLevel = ref(1);
 const maxHp = ref(50);
-const currentHp = ref(42);
+const currentHp = ref(50);
 const bossName = ref('AutoCorrect');
 const freeHitAvailable = ref(true);
 const nextFreeHitTime = ref<number | null>(null);
@@ -36,7 +45,7 @@ const showToast = (msg: string) => {
   toastMessage.value = msg;
   setTimeout(() => {
     if (toastMessage.value === msg) toastMessage.value = null;
-  }, 2200);
+  }, 2800);
 };
 
 // Boss List metadata
@@ -58,7 +67,10 @@ const fetchRaidState = async () => {
   try {
     isSyncing.value = true;
     const res: any = await $fetch('/api/game', {
-      params: { playerId: playerId.value }
+      params: { 
+        playerId: playerId.value,
+        nullifierHash: verifiedNullifier.value || undefined
+      }
     });
 
     if (res && res.success && res.raid) {
@@ -73,7 +85,11 @@ const fetchRaidState = async () => {
       hasSword.value = res.player.hasSword;
       hasBow.value = res.player.hasBow;
 
-      if (res.player.lastFreeHitTime) {
+      // Handle server-enforced cooldown based on nullifier hash
+      if (res.humanCooldownRemainingMs && res.humanCooldownRemainingMs > 0) {
+        freeHitAvailable.value = false;
+        nextFreeHitTime.value = Date.now() + res.humanCooldownRemainingMs;
+      } else if (res.player.lastFreeHitTime) {
         const cooldownHours = res.player.hasBow ? 12 : 24;
         const cooldown = cooldownHours * 60 * 60 * 1000;
         const expiry = res.player.lastFreeHitTime + cooldown;
@@ -93,18 +109,33 @@ const fetchRaidState = async () => {
   }
 };
 
-// Load saved local state & initialize Global Raid Sync
+// Load saved local state & initialize MiniKit + Global Raid Sync
 onMounted(() => {
   if (typeof window !== 'undefined') {
-    // Persistent Player Identity
+    // 1. Initialize MiniKit for World App
+    try {
+      MiniKit.install(APP_ID);
+      isInsideWorldApp.value = MiniKit.isInstalled();
+      if (isInsideWorldApp.value && MiniKit.user?.walletAddress) {
+        playerId.value = MiniKit.user.walletAddress;
+      }
+    } catch (e) {
+      console.warn('[MiniKit] Installation check:', e);
+    }
+
+    // 2. Persistent Player Identity & Saved State
     let storedId = localStorage.getItem('defeat_ai_player_id');
     if (!storedId) {
       storedId = 'human-' + Math.random().toString(36).substring(2, 9);
       localStorage.setItem('defeat_ai_player_id', storedId);
     }
-    playerId.value = storedId;
+    if (!isInsideWorldApp.value) {
+      playerId.value = storedId;
+    }
 
-    // Fast local restore
+    const savedNullifier = localStorage.getItem('defeat_ai_nullifier');
+    if (savedNullifier) verifiedNullifier.value = savedNullifier;
+
     const savedTokens = localStorage.getItem('defeat_ai_user_tokens');
     if (savedTokens) userTokens.value = parseInt(savedTokens, 10);
 
@@ -126,13 +157,10 @@ onMounted(() => {
       if (Date.now() < expiry) {
         freeHitAvailable.value = false;
         nextFreeHitTime.value = expiry;
-      } else {
-        freeHitAvailable.value = true;
-        nextFreeHitTime.value = null;
       }
     }
 
-    // Connect to Netlify Blobs Backend
+    // 3. Connect to Netlify Blobs Backend
     fetchRaidState();
     pollTimer = setInterval(fetchRaidState, 12000);
   }
@@ -147,8 +175,8 @@ const selectBoss = (lvl: number) => {
   currentBossLevel.value = target.level;
   bossName.value = target.name;
   maxHp.value = target.maxHp;
-  currentHp.value = Math.round(target.maxHp * 0.85);
-  showToast(`[TEST] LVL 0${target.level}: ${target.name}`);
+  currentHp.value = target.maxHp;
+  showToast(`[SECTOR] LVL 0${target.level}: ${target.name}`);
 };
 
 const handleFight = (level: number) => {
@@ -156,75 +184,205 @@ const handleFight = (level: number) => {
   activeTab.value = 'boss';
 };
 
-// Handle Hit from BossView (Synchronized globally via server API)
+// Handle Hit: Executes World ID ZK-SNARK verification for Free Daily Strike
 const handleHit = async (type: 'free' | 'power') => {
   const cooldownHours = hasBow.value ? 12 : 24;
   const cooldownMs = cooldownHours * 60 * 60 * 1000;
-  const damageDealt = hasSword.value ? 2 : 1;
-  const tokensEarned = hasSword.value ? 40 : 20;
 
   if (type === 'free') {
     if (!freeHitAvailable.value) {
       showToast(`Daily strike available once every ${cooldownHours}h`);
       return;
     }
-    freeHitAvailable.value = false;
-    nextFreeHitTime.value = Date.now() + cooldownMs;
-    userTokens.value += tokensEarned;
-    showToast(hasSword.value 
-      ? '⚔️ Plasma Strike (-2 HP) · Claimed +40 $DEF' 
-      : '💥 Strike confirmed (-1 HP) · Claimed +20 $DEF');
+
+    let proofPayload: any = null;
+
+    // Check if inside World App
+    if (MiniKit.isInstalled()) {
+      try {
+        isVerifying.value = true;
+        showToast('👁️ Verifying World ID (Orb)...');
+
+        const verifyResponse = await MiniKit.commandsAsync.verify({
+          action: 'daily-strike',
+          signal: playerId.value,
+          verification_level: VerificationLevel.Orb
+        });
+
+        isVerifying.value = false;
+
+        if (verifyResponse.finalPayload.status === 'error') {
+          showToast(`World ID verification failed: ${verifyResponse.finalPayload.error_code || 'Cancelled'}`);
+          return;
+        }
+
+        proofPayload = verifyResponse.finalPayload;
+        if (proofPayload.nullifier_hash) {
+          verifiedNullifier.value = proofPayload.nullifier_hash;
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('defeat_ai_nullifier', proofPayload.nullifier_hash);
+          }
+        }
+      } catch (err: any) {
+        isVerifying.value = false;
+        showToast(`Verification error: ${err.message || 'Unknown'}`);
+        return;
+      }
+    } else {
+      // Outside World App: Require World App or dev mode test
+      if (process.env.NODE_ENV === 'production') {
+        showWorldAppModal.value = true;
+        return;
+      } else {
+        // Dev fallback for desktop browser testing
+        proofPayload = {
+          proof: 'dev_mock_proof',
+          merkle_root: 'dev_mock_root',
+          nullifier_hash: verifiedNullifier.value || `dev_human_${playerId.value}`,
+          verification_level: 'orb',
+          is_test_mock: true
+        };
+        showToast('⚠️ DEV MODE: World ID mock proof used.');
+      }
+    }
+
+    // Call server API with verified cryptographic proof
+    try {
+      const res: any = await $fetch('/api/game', {
+        method: 'POST',
+        body: {
+          action: 'strike',
+          type: 'free',
+          playerId: playerId.value,
+          proofPayload,
+          hasSword: hasSword.value,
+          hasBow: hasBow.value
+        }
+      });
+
+      if (res && res.success) {
+        freeHitAvailable.value = false;
+        nextFreeHitTime.value = res.nextFreeHitTime || (Date.now() + cooldownMs);
+        if (res.player) userTokens.value = res.player.tokens;
+        if (res.raid) {
+          currentHp.value = res.raid.currentHp;
+          maxHp.value = res.raid.maxHp;
+          currentBossLevel.value = res.raid.currentLevel;
+          bossName.value = res.raid.bossName;
+        }
+
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('defeat_ai_last_free_hit', Date.now().toString());
+          localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
+        }
+
+        showToast(hasSword.value 
+          ? '⚔️ Plasma Strike (-2 HP) · Claimed +40 $DEF' 
+          : '💥 Verified Strike (-1 HP) · Claimed +20 $DEF');
+
+        if (res.bossDefeated) {
+          showToast('🎉 Boss annihilated! Sector advanced!');
+        }
+      }
+    } catch (err: any) {
+      const errData = err.data || {};
+      if (err.status === 429) {
+        freeHitAvailable.value = false;
+        if (errData.nextFreeHitTime) nextFreeHitTime.value = errData.nextFreeHitTime;
+        showToast(`⏳ Cooldown active on your World ID.`);
+      } else if (err.status === 401) {
+        showToast(`🔒 ${errData.error || 'World ID verification required.'}`);
+      } else {
+        showToast(`Server error: ${errData.error || err.message}`);
+      }
+    }
   } else {
-    userTokens.value += 20;
-    showToast('⚡ Power Strike confirmed (-1 HP) · +20 $DEF');
-  }
+    // Power Strike (2 WLD)
+    if (MiniKit.isInstalled()) {
+      try {
+        const payRes = await MiniKit.commandsAsync.pay({
+          reference: `power-strike-${Date.now()}`,
+          to: TREASURY_WALLET,
+          tokens: [{
+            symbol: Tokens.WLD,
+            token_amount: tokenToDecimals(2, Tokens.WLD).toString()
+          }],
+          description: 'Defeat AI: Power Strike (-1 HP)'
+        });
 
-  // Server API Call with fallback
-  try {
-    const res: any = await $fetch('/api/game', {
-      method: 'POST',
-      body: {
-        action: 'strike',
-        type,
-        playerId: playerId.value,
-        hasSword: hasSword.value,
-        hasBow: hasBow.value
+        if (payRes.finalPayload.status !== 'success') {
+          showToast('Payment cancelled');
+          return;
+        }
+      } catch (err: any) {
+        showToast(`Payment error: ${err.message}`);
+        return;
       }
-    });
-
-    if (res && res.success && res.raid) {
-      currentBossLevel.value = res.raid.currentLevel;
-      bossName.value = res.raid.bossName;
-      maxHp.value = res.raid.maxHp;
-      currentHp.value = res.raid.currentHp;
-      if (res.player) userTokens.value = res.player.tokens;
-      if (res.bossDefeated) {
-        showToast(`🎉 Boss defeated by humanity! Advancing to next sector!`);
+    } else {
+      if (userWld.value < 2) {
+        showToast('Insufficient WLD balance');
+        return;
       }
+      userWld.value -= 2;
     }
-  } catch (err) {
-    // Local fallback if offline
-    if (currentHp.value > 0) {
-      currentHp.value = Math.max(0, currentHp.value - damageDealt);
-    }
-  }
 
-  if (typeof window !== 'undefined') {
-    if (type === 'free') {
-      localStorage.setItem('defeat_ai_last_free_hit', Date.now().toString());
+    // Call server for power strike
+    try {
+      const res: any = await $fetch('/api/game', {
+        method: 'POST',
+        body: {
+          action: 'strike',
+          type: 'power',
+          playerId: playerId.value,
+          hasSword: hasSword.value,
+          hasBow: hasBow.value
+        }
+      });
+
+      if (res && res.success) {
+        if (res.player) userTokens.value = res.player.tokens;
+        if (res.raid) {
+          currentHp.value = res.raid.currentHp;
+          maxHp.value = res.raid.maxHp;
+        }
+        showToast('⚡ Power Strike confirmed (-1 HP) · +20 $DEF');
+      }
+    } catch (err: any) {
+      showToast('Error processing power strike');
     }
-    localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
-    localStorage.setItem('defeat_ai_current_hp', currentHp.value.toString());
   }
 };
 
 // Purchase Gear from Cyber Armory Shop
-const handleBuyItem = (item: 'sword' | 'bow') => {
-  if (userWld.value < 200) {
-    showToast('Insufficient WLD balance');
-    return;
+const handleBuyItem = async (item: 'sword' | 'bow') => {
+  if (MiniKit.isInstalled()) {
+    try {
+      const payRes = await MiniKit.commandsAsync.pay({
+        reference: `buy-${item}-${Date.now()}`,
+        to: TREASURY_WALLET,
+        tokens: [{
+          symbol: Tokens.WLD,
+          token_amount: tokenToDecimals(200, Tokens.WLD).toString()
+        }],
+        description: item === 'sword' ? 'Armory: Quantum Plasma Blade (2x)' : 'Armory: Tachyon Chrono-Bow (-50% Cooldown)'
+      });
+
+      if (payRes.finalPayload.status !== 'success') {
+        showToast('Payment cancelled');
+        return;
+      }
+    } catch (err: any) {
+      showToast(`Payment failed: ${err.message}`);
+      return;
+    }
+  } else {
+    if (userWld.value < 200) {
+      showToast('Insufficient WLD balance');
+      return;
+    }
+    userWld.value -= 200;
   }
-  userWld.value -= 200;
+
   if (item === 'sword') {
     hasSword.value = true;
     showToast('⚔️ Quantum Plasma Blade equipped! 2x Damage & 2x Tokens active.');
@@ -261,6 +419,12 @@ const handleAddWld = (amount: number) => {
     localStorage.setItem('defeat_ai_user_wld', userWld.value.toString());
   }
   showToast(`🪙 Added +${amount} WLD test balance`);
+};
+
+// Dev simulator strike for desktop browser
+const executeDevTestStrike = () => {
+  showWorldAppModal.value = false;
+  handleHit('free');
 };
 </script>
 
@@ -338,6 +502,47 @@ const handleAddWld = (amount: number) => {
       @buy-item="handleBuyItem"
       @add-wld="handleAddWld"
     />
+
+    <!-- World App Required Modal (When outside World App on desktop) -->
+    <div 
+      v-if="showWorldAppModal" 
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+    >
+      <div class="w-full max-w-sm rounded-3xl bg-zinc-900 border border-white/10 p-6 text-center space-y-4 shadow-2xl">
+        <div class="w-14 h-14 rounded-2xl bg-white text-black flex items-center justify-center mx-auto text-2xl font-black shadow-lg">
+          👁️
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-white tracking-wide">World App Required</h3>
+          <p class="text-xs text-zinc-400 mt-1 leading-relaxed">
+            Only verified humans (Orb) can execute daily strikes & claim $DEF. Open Defeat AI inside World App to verify your identity.
+          </p>
+        </div>
+        <div class="pt-2 flex flex-col gap-2">
+          <a 
+            :href="`https://worldcoin.org/mini-app?app_id=${APP_ID}`"
+            target="_blank"
+            class="w-full py-3 rounded-xl bg-white text-black font-mono font-bold text-xs tracking-wider uppercase hover:bg-zinc-200 transition-colors"
+          >
+            Open in World App
+          </a>
+          <button 
+            type="button"
+            @click="executeDevTestStrike"
+            class="w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-mono text-[11px] transition-colors"
+          >
+            Test Strike (Dev Simulator)
+          </button>
+          <button 
+            type="button"
+            @click="showWorldAppModal = false"
+            class="w-full py-2 text-zinc-500 text-xs font-mono hover:text-zinc-300 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
 
   </div>
 </template>

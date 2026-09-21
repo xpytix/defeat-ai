@@ -4,6 +4,7 @@ export interface StrikeRecord {
   id: string;
   playerId: string;
   playerName: string;
+  nullifierHash?: string;
   type: 'free' | 'power';
   damage: number;
   tokensEarned: number;
@@ -33,6 +34,7 @@ export interface GlobalRaidState {
 
 export interface PlayerProfile {
   id: string;
+  nullifierHash?: string;
   address?: string;
   tokens: number;
   wld: number;
@@ -57,6 +59,7 @@ export const BOSS_METADATA = [
 // In-memory fallback
 let memoryRaid: GlobalRaidState | null = null;
 const memoryPlayers = new Map<string, PlayerProfile>();
+const memoryHumanCooldowns = new Map<string, number>();
 
 function getBlobsStore() {
   try {
@@ -67,6 +70,22 @@ function getBlobsStore() {
     console.warn('[DB] Netlify Blobs not available, falling back to memory:', e);
   }
   return null;
+}
+
+// Factory for clean initial state (Level 1 AutoCorrect 50/50 HP, 0 strikes)
+export function createPristineRaidState(): GlobalRaidState {
+  const initialBoss = BOSS_METADATA[0];
+  return {
+    currentLevel: 1,
+    currentHp: initialBoss.maxHp, // Full 50/50 HP
+    maxHp: initialBoss.maxHp,
+    bossName: initialBoss.name,
+    totalStrikes: 0,
+    defeatedBosses: [],
+    recentStrikes: [],
+    contributors: {},
+    updatedAt: Date.now()
+  };
 }
 
 export async function getRaidState(): Promise<GlobalRaidState> {
@@ -88,40 +107,9 @@ export async function getRaidState(): Promise<GlobalRaidState> {
     return memoryRaid;
   }
 
-  // Initial State if first run
-  const initialBoss = BOSS_METADATA[0];
-  const initial: GlobalRaidState = {
-    currentLevel: 1,
-    currentHp: Math.round(initialBoss.maxHp * 0.84), // 42/50
-    maxHp: initialBoss.maxHp,
-    bossName: initialBoss.name,
-    totalStrikes: 8,
-    defeatedBosses: [],
-    recentStrikes: [
-      {
-        id: 'init-strike-1',
-        playerId: '0x8f...39a1',
-        playerName: 'Human #01',
-        type: 'free',
-        damage: 1,
-        tokensEarned: 20,
-        weapon: 'Base Strike',
-        timestamp: Date.now() - 1000 * 60 * 15
-      }
-    ],
-    contributors: {
-      '0x8f...39a1': {
-        address: '0x8f...39a1',
-        hits: 8,
-        damage: 8,
-        rewardEarned: 160,
-        lastHit: Date.now() - 1000 * 60 * 15
-      }
-    },
-    updatedAt: Date.now()
-  };
-
+  const initial = createPristineRaidState();
   memoryRaid = initial;
+
   if (store) {
     try {
       await store.setJSON('raid_state', initial);
@@ -131,6 +119,23 @@ export async function getRaidState(): Promise<GlobalRaidState> {
   }
 
   return initial;
+}
+
+export async function resetRaidState(): Promise<GlobalRaidState> {
+  const fresh = createPristineRaidState();
+  memoryRaid = fresh;
+  memoryPlayers.clear();
+  memoryHumanCooldowns.clear();
+
+  const store = getBlobsStore();
+  if (store) {
+    try {
+      await store.setJSON('raid_state', fresh);
+    } catch (err) {
+      console.error('[DB] Failed to reset raid state in Netlify Blobs:', err);
+    }
+  }
+  return fresh;
 }
 
 export async function saveRaidState(state: GlobalRaidState): Promise<void> {
@@ -146,28 +151,61 @@ export async function saveRaidState(state: GlobalRaidState): Promise<void> {
   }
 }
 
-export async function getPlayerProfile(playerId: string): Promise<PlayerProfile> {
+// World ID nullifier-based cooldown check (Permanent human uniqueness)
+export async function getHumanLastStrike(nullifierHash: string): Promise<number> {
   const store = getBlobsStore();
   if (store) {
     try {
-      const data = await store.get(`player_${playerId}`, { type: 'json' }) as PlayerProfile | null;
-      if (data) {
-        memoryPlayers.set(playerId, data);
-        return data;
+      const record = await store.get(`human_${nullifierHash}`, { type: 'json' }) as { lastStrike: number } | null;
+      if (record && record.lastStrike) {
+        memoryHumanCooldowns.set(nullifierHash, record.lastStrike);
+        return record.lastStrike;
       }
     } catch (err) {
-      console.warn(`[DB] Error reading player ${playerId} from blobs:`, err);
+      console.warn(`[DB] Error fetching human cooldown for ${nullifierHash}:`, err);
     }
   }
 
-  if (memoryPlayers.has(playerId)) {
-    return memoryPlayers.get(playerId)!;
+  return memoryHumanCooldowns.get(nullifierHash) || 0;
+}
+
+export async function recordHumanStrike(nullifierHash: string, timestamp: number): Promise<void> {
+  memoryHumanCooldowns.set(nullifierHash, timestamp);
+  const store = getBlobsStore();
+  if (store) {
+    try {
+      await store.setJSON(`human_${nullifierHash}`, { lastStrike: timestamp, updatedAt: Date.now() });
+    } catch (err) {
+      console.error(`[DB] Failed to save human cooldown for ${nullifierHash}:`, err);
+    }
+  }
+}
+
+export async function getPlayerProfile(playerId: string, nullifierHash?: string): Promise<PlayerProfile> {
+  const key = nullifierHash ? `human_player_${nullifierHash}` : `player_${playerId}`;
+  const store = getBlobsStore();
+
+  if (store) {
+    try {
+      const data = await store.get(key, { type: 'json' }) as PlayerProfile | null;
+      if (data) {
+        memoryPlayers.set(key, data);
+        return data;
+      }
+    } catch (err) {
+      console.warn(`[DB] Error reading player ${key} from blobs:`, err);
+    }
   }
 
-  // Default new player profile
+  if (memoryPlayers.has(key)) {
+    return memoryPlayers.get(key)!;
+  }
+
+  // Clean fresh player starts with 0 $DEF and standard initial WLD
   const newPlayer: PlayerProfile = {
     id: playerId,
-    tokens: 40,
+    nullifierHash,
+    tokens: 0,
     wld: 250,
     hasSword: false,
     hasBow: false,
@@ -176,18 +214,19 @@ export async function getPlayerProfile(playerId: string): Promise<PlayerProfile>
     totalStrikes: 0
   };
 
-  memoryPlayers.set(playerId, newPlayer);
+  memoryPlayers.set(key, newPlayer);
   return newPlayer;
 }
 
 export async function savePlayerProfile(profile: PlayerProfile): Promise<void> {
-  memoryPlayers.set(profile.id, profile);
+  const key = profile.nullifierHash ? `human_player_${profile.nullifierHash}` : `player_${profile.id}`;
+  memoryPlayers.set(key, profile);
   const store = getBlobsStore();
   if (store) {
     try {
-      await store.setJSON(`player_${profile.id}`, profile);
+      await store.setJSON(key, profile);
     } catch (err) {
-      console.error(`[DB] Failed to save player ${profile.id} in blobs:`, err);
+      console.error(`[DB] Failed to save player profile ${key} in blobs:`, err);
     }
   }
 }
