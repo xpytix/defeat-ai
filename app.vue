@@ -132,9 +132,7 @@ onMounted(() => {
       storedId = 'human-' + Math.random().toString(36).substring(2, 9);
       localStorage.setItem('defeat_ai_player_id', storedId);
     }
-    if (!isInsideWorldApp.value) {
-      playerId.value = storedId;
-    }
+    playerId.value = MiniKit.user?.walletAddress || storedId;
 
     const savedNullifier = localStorage.getItem('defeat_ai_nullifier');
     if (savedNullifier) verifiedNullifier.value = savedNullifier;
@@ -268,6 +266,8 @@ const handleHit = async (type: 'free' | 'power') => {
 
         if (res.bossDefeated) {
           showToast('🎉 Boss annihilated! Sector advanced!');
+        } else {
+          showToast(`💥 Strike confirmed! -${dmg} HP (+${tokens} $DEF)`);
         }
       }
     } catch (err: any) {
