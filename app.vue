@@ -8,6 +8,9 @@ import BottomNav from '~/components/BottomNav.vue';
 const activeTab = ref<'boss' | 'characters'>('boss');
 const toastMessage = ref<string | null>(null);
 
+// User Token Balance (Earned from Daily Strikes & Raid Contributions)
+const userTokens = ref(2);
+
 // Game State
 const currentBossLevel = ref(1);
 const maxHp = ref(50);
@@ -27,6 +30,11 @@ const showToast = (msg: string) => {
 // Load saved local state
 onMounted(() => {
   if (typeof window !== 'undefined') {
+    const savedTokens = localStorage.getItem('defeat_ai_user_tokens');
+    if (savedTokens) {
+      userTokens.value = parseInt(savedTokens, 10);
+    }
+
     const savedLastHit = localStorage.getItem('defeat_ai_last_free_hit');
     if (savedLastHit) {
       const lastHitTime = parseInt(savedLastHit, 10);
@@ -58,12 +66,18 @@ const handleHit = (type: 'free' | 'power') => {
     freeHitAvailable.value = false;
     const expiry = Date.now() + 24 * 60 * 60 * 1000;
     nextFreeHitTime.value = expiry;
+
+    // Daily strike also mints / claims 1 token for the user!
+    userTokens.value += 1;
+
     if (typeof window !== 'undefined') {
       localStorage.setItem('defeat_ai_last_free_hit', Date.now().toString());
+      localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
     }
-    showToast('Strike confirmed (-1 HP)');
+    showToast('💥 Strike confirmed (-1 HP) · Claimed +1 $HVAI');
   } else {
-    showToast('Power Strike confirmed (-1 HP)');
+    // Power strike
+    showToast('⚡ Power Strike confirmed (-1 HP)');
   }
 
   // Deduct HP
@@ -75,12 +89,12 @@ const handleHit = (type: 'free' | 'power') => {
 
     // Boss Defeated
     if (currentHp.value <= 0) {
-      showToast('Boss defeated! Tokens unlocked');
+      showToast('🎉 Boss defeated! Tokens unlocked');
       setTimeout(() => {
         currentBossLevel.value += 1;
         maxHp.value = 100;
         currentHp.value = 100;
-        bossName.value = 'Neural Weaver';
+        bossName.value = 'Neural Prophet';
         if (typeof window !== 'undefined') {
           localStorage.setItem('defeat_ai_current_hp', '100');
         }
@@ -105,7 +119,7 @@ const handleHit = (type: 'free' | 'power') => {
       </div>
     </transition>
 
-    <!-- Clean Safe-Area Header Spacer (No Clutter) -->
+    <!-- Clean Safe-Area Header Spacer -->
     <div class="pt-safe shrink-0" />
 
     <!-- Main View Switcher -->
@@ -119,6 +133,7 @@ const handleHit = (type: 'free' | 'power') => {
           :boss-name="bossName"
           :free-hit-available="freeHitAvailable"
           :next-free-hit-time="nextFreeHitTime"
+          :user-tokens="userTokens"
           @hit="handleHit"
         />
         <CharactersView 
