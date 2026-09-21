@@ -218,7 +218,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
 <template>
   <div 
-    class="h-full flex-1 flex flex-col justify-between items-center px-4 sm:px-6 pt-1 pb-20 sm:pb-24 max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl mx-auto w-full select-none overflow-hidden transition-colors duration-500"
+    class="h-full flex-1 flex flex-col justify-between items-center px-3 sm:px-6 pt-1 pb-16 sm:pb-20 max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-3xl mx-auto w-full select-none overflow-hidden transition-colors duration-500"
     @mousemove="handlePointerMove"
     @touchmove="handlePointerMove"
     @mouseleave="resetTilt"
@@ -341,10 +341,10 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
         />
       </div>
 
-      <!-- LAYER 3: THE 3D BOSS CHARACTER CONTAINER -->
+      <!-- LAYER 3: THE 3D BOSS CHARACTER CONTAINER (EXPANDS FOR IPHONE 16 PRO MAX & TABLETS) -->
       <div 
         @click="freeHitAvailable ? triggerHit('free', $event) : triggerHit('power', $event)"
-        class="relative w-full h-full max-h-[44vh] sm:max-h-[50vh] max-w-[360px] sm:max-w-[460px] md:max-w-[540px] aspect-square cursor-pointer flex items-center justify-center transition-transform duration-100 ease-out active:scale-95 my-auto"
+        class="relative w-full h-full max-h-[46vh] sm:max-h-[50vh] md:max-h-[55vh] max-w-[min(94vw,430px)] sm:max-w-[500px] md:max-w-[580px] aspect-square cursor-pointer flex items-center justify-center transition-transform duration-100 ease-out active:scale-95 my-auto"
         :class="{ 'animate-shake': isShaking }"
         :style="{
           transform: `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,
@@ -356,9 +356,9 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           <img 
             :src="bossImage" 
             :alt="bossName" 
-            class="w-full h-full object-contain select-none pointer-events-none transition-transform duration-100"
+            class="w-full h-full object-contain select-none pointer-events-none transition-transform duration-100 scale-105 sm:scale-105"
             :class="[
-              isShaking ? 'brightness-125 filter contrast-125 !scale-105' : '',
+              isShaking ? 'brightness-125 filter contrast-125 !scale-110' : '',
               isWhiteTheme ? 'mix-blend-multiply' : ''
             ]"
           />
@@ -408,7 +408,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
     </div>
 
     <!-- PROMINENT HP DISPLAY DIRECTLY UNDER BOSS -->
-    <div class="w-full shrink-0 max-w-[380px] sm:max-w-[460px] px-2 z-30">
+    <div class="w-full shrink-0 max-w-[420px] sm:max-w-[480px] md:max-w-[540px] px-2 z-30">
       <!-- Direct HP Numbers & Percentage -->
       <div class="flex items-center justify-between font-mono mb-1 px-0.5">
         <div 
@@ -446,7 +446,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
     </div>
 
     <!-- WIDER ACTION BUTTONS (ALWAYS VISIBLE ABOVE BOTTOM NAV ON ANY SCREEN) -->
-    <div class="w-full shrink-0 max-w-[380px] sm:max-w-[460px] space-y-2 mt-2 px-1 z-30">
+    <div class="w-full shrink-0 max-w-[420px] sm:max-w-[480px] md:max-w-[540px] space-y-2 mt-2 px-1 z-30">
       
       <!-- FREE DAILY STRIKE (ATTACK + CLAIM 20 TOKENS) -->
       <button 
