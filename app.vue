@@ -16,6 +16,7 @@ const WORLDSCAN_TOKEN_URL = 'https://worldscan.org/token/0xb767B50e80084330Fe2bF
 // Navigation State
 const activeTab = ref<'boss' | 'characters'>('boss');
 const toastMessage = ref<string | null>(null);
+const bossViewRef = ref<any>(null);
 
 // User Player ID & World ID Identity
 const playerId = ref('human-stryker');
@@ -279,9 +280,9 @@ const handleHit = async (type: 'free' | 'power') => {
           localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
         }
 
-        showToast(hasSword.value 
-          ? '⚔️ Plasma Strike (-2 HP) · Claimed +40 $DEF' 
-          : '💥 Verified Strike (-1 HP) · Claimed +20 $DEF');
+        const dmg = hasSword.value ? 2 : 1;
+        const tokens = hasSword.value ? 40 : 20;
+        bossViewRef.value?.playAttackAnimation('free', dmg, tokens);
 
         if (res.bossDefeated) {
           showToast('🎉 Boss annihilated! Sector advanced!');
@@ -348,9 +349,9 @@ const handleHit = async (type: 'free' | 'power') => {
           currentHp.value = res.raid.currentHp;
           maxHp.value = res.raid.maxHp;
         }
-        showToast(hasSword.value 
-          ? '⚡ Plasma Power Strike (-2 HP) · +40 $DEF' 
-          : '⚡ Power Strike (-1 HP) · +20 $DEF');
+        const dmg = hasSword.value ? 2 : 1;
+        const tokens = hasSword.value ? 40 : 20;
+        bossViewRef.value?.playAttackAnimation('power', dmg, tokens);
       }
     } catch (err: any) {
       showToast('Error processing power strike');
@@ -491,6 +492,7 @@ const executeDevTestStrike = () => {
     <!-- Main View Switcher (Instant crisp switching, zero fade lag) -->
     <main class="flex-1 min-h-0 flex flex-col overflow-hidden relative">
       <BossView 
+        ref="bossViewRef"
         v-if="activeTab === 'boss'" 
         :current-hp="currentHp"
         :max-hp="maxHp"

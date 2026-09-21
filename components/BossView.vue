@@ -236,45 +236,82 @@ const resetTilt = () => {
   tiltY.value = 0;
 };
 
-// Trigger Hit
-const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => {
+const lastRewardBanner = ref<{
+  type: 'free' | 'power';
+  damage: number;
+  tokens: number;
+} | null>(null);
+
+// Audio synthesis for strike SFX
+const playStrikeSfx = (type: 'free' | 'power') => {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type === 'power' ? 'sawtooth' : 'triangle';
+    osc.frequency.setValueAtTime(type === 'power' ? 180 : 340, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+  } catch (e) {
+    // Ignore audio restrictions
+  }
+};
+
+// Play Attack Animation (Triggered ONLY after MiniKit verification/payment confirms)
+const playAttackAnimation = (type: 'free' | 'power', damage: number, tokensEarned: number) => {
   isShaking.value = true;
   setTimeout(() => {
     isShaking.value = false;
-  }, 220);
+  }, 350);
 
   const id = Date.now() + Math.random();
-  let clientX = window.innerWidth / 2;
-  let clientY = window.innerHeight / 2 - 40;
-
-  if (event) {
-    if ('touches' in event && event.touches.length > 0) {
-      clientX = event.touches[0].clientX;
-      clientY = event.touches[0].clientY;
-    } else if ('clientX' in event) {
-      clientX = event.clientX;
-      clientY = event.clientY;
-    }
-  }
+  const clientX = window.innerWidth / 2;
+  const clientY = window.innerHeight / 2 - 40;
 
   floatingDamages.value.push({
     id,
     value: type === 'power' 
-      ? '-1 CRIT (+20)' 
-      : (props.hasSword ? '-2 PLASMA (+40)' : '-1 HP (+20)'),
+      ? `-2 CRIT (+${tokensEarned} $DEF)` 
+      : (props.hasSword ? `-2 PLASMA (+${tokensEarned} $DEF)` : `-1 HP (+${tokensEarned} $DEF)`),
     x: clientX + (Math.random() * 40 - 20),
     y: clientY - 30
   });
 
   setTimeout(() => {
     floatingDamages.value = floatingDamages.value.filter(d => d.id !== id);
-  }, 750);
+  }, 1000);
 
-  emit('hit', type);
+  lastRewardBanner.value = {
+    type,
+    damage,
+    tokens: tokensEarned
+  };
+
+  setTimeout(() => {
+    lastRewardBanner.value = null;
+  }, 3500);
 
   if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-    navigator.vibrate(type === 'power' ? [25, 40, 25] : 20);
+    navigator.vibrate(type === 'power' ? [35, 60, 35] : [30, 45]);
   }
+
+  playStrikeSfx(type);
+};
+
+defineExpose({
+  playAttackAnimation
+});
+
+// Trigger Hit (Requests MiniKit confirmation without preemptive animation)
+const triggerHit = (type: 'free' | 'power') => {
+  emit('hit', type);
 };
 
 // Compact formatter for token count so large numbers never break layout
@@ -579,6 +616,44 @@ const formatTokens = (val: number) => {
       >
         {{ d.value }}
       </div>
+
+      <!-- Floating Celebratory Token Reward Banner -->
+      <transition
+        enter-active-class="transform transition ease-out duration-300"
+        enter-from-class="opacity-0 scale-75 translate-y-6"
+        enter-to-class="opacity-100 scale-100 translate-y-0"
+        leave-active-class="transform transition ease-in duration-200"
+        leave-from-class="opacity-100 scale-100 translate-y-0"
+        leave-to-class="opacity-0 scale-90 -translate-y-4"
+      >
+        <div 
+          v-if="lastRewardBanner" 
+          class="fixed z-50 pointer-events-none top-[38%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-auto whitespace-nowrap"
+        >
+          <div 
+            class="px-5 py-3 rounded-2xl backdrop-blur-2xl flex items-center gap-3 border shadow-2xl animate-pulse"
+            :class="isWhiteTheme 
+              ? 'bg-white/95 border-cyan-500 shadow-[0_10px_35px_rgba(6,182,212,0.3)]' 
+              : 'bg-zinc-950/95 border-cyan-400 shadow-[0_0_35px_rgba(34,211,238,0.5)]'"
+          >
+            <img src="/def.png" class="w-8 h-8 rounded-full border border-cyan-300 shadow-md shrink-0" />
+            <div class="flex flex-col text-left">
+              <span 
+                class="text-[10px] font-mono font-black uppercase tracking-widest"
+                :class="isWhiteTheme ? 'text-cyan-700' : 'text-cyan-400'"
+              >
+                {{ lastRewardBanner.type === 'power' ? '⚡ POWER STRIKE' : '💥 DAILY STRIKE' }} (-{{ lastRewardBanner.damage }} HP)
+              </span>
+              <span 
+                class="text-base sm:text-lg font-black font-mono tracking-wide"
+                :class="isWhiteTheme ? 'text-zinc-950' : 'text-white'"
+              >
+                +{{ lastRewardBanner.tokens }} $DEF ODEBRANE!
+              </span>
+            </div>
+          </div>
+        </div>
+      </transition>
 
     </div>
 
