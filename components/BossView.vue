@@ -9,6 +9,18 @@ interface FloatingDamage {
   y: number;
 }
 
+interface Particle {
+  id: number;
+  left: string;
+  bottom: string;
+  size: string;
+  duration: string;
+  delay: string;
+  driftX: string;
+  color: string;
+  blur: string;
+}
+
 const props = defineProps<{
   currentHp: number;
   maxHp: number;
@@ -35,30 +47,42 @@ let countdownInterval: any = null;
 const spectatorCount = ref('4.2K');
 const activeAttackerCount = ref(186);
 
-// Animated rising embers/particles
-interface Particle {
-  id: number;
-  left: string;
-  bottom: string;
-  size: string;
-  duration: string;
-  delay: string;
-  color: string;
-}
-
-const particles = ref<Particle[]>([]);
+// Layered Volumetric Particles: Foreground (in front of boss) & Background (behind boss)
+const foregroundParticles = ref<Particle[]>([]);
+const backgroundParticles = ref<Particle[]>([]);
 
 onMounted(() => {
-  // Generate random rising cyber sparks/embers around boss
-  const colors = ['bg-cyan-400', 'bg-amber-400', 'bg-rose-500', 'bg-cyan-300'];
-  particles.value = Array.from({ length: 22 }, (_, i) => ({
+  const colors = [
+    'bg-cyan-400 text-cyan-300',
+    'bg-amber-300 text-amber-300',
+    'bg-rose-400 text-rose-300',
+    'bg-white text-cyan-200'
+  ];
+
+  // Foreground particles (overlap directly across boss chassis and visor)
+  foregroundParticles.value = Array.from({ length: 26 }, (_, i) => ({
     id: i,
-    left: `${15 + Math.random() * 70}%`,
-    bottom: `${10 + Math.random() * 40}%`,
+    left: `${18 + Math.random() * 64}%`,
+    bottom: `${5 + Math.random() * 45}%`,
+    size: `${1.5 + Math.random() * 3.5}px`,
+    duration: `${1.8 + Math.random() * 2.2}s`,
+    delay: `${Math.random() * 2.5}s`,
+    driftX: `${(Math.random() - 0.5) * 50}px`,
+    color: colors[i % colors.length],
+    blur: i % 4 === 0 ? '1px' : '0px'
+  }));
+
+  // Background ambient particles
+  backgroundParticles.value = Array.from({ length: 16 }, (_, i) => ({
+    id: i + 100,
+    left: `${10 + Math.random() * 80}%`,
+    bottom: `${10 + Math.random() * 50}%`,
     size: `${2 + Math.random() * 3}px`,
-    duration: `${2.2 + Math.random() * 2.8}s`,
+    duration: `${2.8 + Math.random() * 2.5}s`,
     delay: `${Math.random() * 3}s`,
-    color: colors[i % colors.length]
+    driftX: `${(Math.random() - 0.5) * 40}px`,
+    color: colors[(i + 1) % colors.length],
+    blur: '1.5px'
   }));
 });
 
@@ -203,21 +227,21 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
     </div>
 
-    <!-- 3D CENTERPIECE ARENA (SOLID, BORDERLESS WITH RISING CYBER EMBERS) -->
+    <!-- 3D CENTERPIECE ARENA: MASSIVE BOSS WITH REALISTIC MULTI-LAYER PARTICLES OVERLAPPING CHASSIS -->
     <div class="relative flex-1 flex flex-col items-center justify-center my-auto w-full overflow-visible py-2">
       
-      <!-- Ambient Reactor Glow -->
+      <!-- LAYER 1: Ambient Reactor Glow & Background Mist -->
       <div 
         class="absolute w-84 h-84 rounded-full blur-[120px] pointer-events-none -z-10"
         :class="hpPercent > 30 ? 'bg-cyan-500/15' : 'bg-red-500/20'"
       />
 
-      <!-- RISING CYBER EMBERS / SPARKS -->
+      <!-- LAYER 2: BACKGROUND CYBER EMBERS (Behind Boss) -->
       <div class="absolute inset-0 pointer-events-none overflow-hidden -z-5">
         <div 
-          v-for="p in particles" 
+          v-for="p in backgroundParticles" 
           :key="p.id"
-          class="absolute rounded-full animate-rise opacity-70"
+          class="absolute rounded-full animate-rise-drift opacity-60"
           :class="p.color"
           :style="{
             left: p.left,
@@ -226,24 +250,14 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
             height: p.size,
             animationDuration: p.duration,
             animationDelay: p.delay,
-            filter: 'blur(0.5px)',
-            boxShadow: '0 0 8px currentColor'
+            filter: `blur(${p.blur})`,
+            boxShadow: '0 0 6px currentColor',
+            '--drift-x': p.driftX
           }"
         />
       </div>
 
-      <!-- Floating Damage Numbers -->
-      <div 
-        v-for="d in floatingDamages" 
-        :key="d.id"
-        class="fixed z-50 pointer-events-none font-mono font-black text-2xl animate-float-damage"
-        :class="d.value.includes('CRIT') ? 'text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.9)]' : 'text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.9)]'"
-        :style="{ left: `${d.x}px`, top: `${d.y}px` }"
-      >
-        {{ d.value }}
-      </div>
-
-      <!-- Large 3D Boss Character Model (Steady, solid, no opacity pulsing) -->
+      <!-- LAYER 3: THE 3D BOSS CHARACTER -->
       <div 
         @click="freeHitAvailable ? triggerHit('free', $event) : triggerHit('power', $event)"
         class="relative w-full max-w-[340px] sm:max-w-[380px] h-[350px] sm:h-[400px] cursor-pointer flex items-center justify-center transition-transform duration-100 ease-out active:scale-95"
@@ -252,6 +266,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           transform: `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,
         }"
       >
+        <!-- The Boss Image -->
         <div class="relative w-full h-full flex items-center justify-center overflow-visible [mask-image:radial-gradient(circle_at_center,black_80%,transparent_100%)]">
           <img 
             src="/bosses/boss_1.jpg" 
@@ -266,10 +281,48 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
             class="absolute inset-0 bg-rose-600/25 pointer-events-none transition-opacity rounded-full blur-xl"
           />
         </div>
+
+        <!-- LAYER 4: FOREGROUND EMBERS & CYBER SPARKS (DIRECTLY OVERLAPPING BOSS CHASSIS & CHEST) -->
+        <div class="absolute inset-0 pointer-events-none overflow-hidden z-20">
+          
+          <!-- Soft Drifting Cyber Smoke Core Wisp -->
+          <div class="absolute bottom-16 left-1/2 -translate-x-1/2 w-48 h-48 bg-gradient-to-t from-cyan-500/10 via-amber-400/5 to-transparent rounded-full blur-2xl animate-smoke-pulse pointer-events-none" />
+
+          <!-- Overlapping Glowing Sparks and Digital Glints -->
+          <div 
+            v-for="p in foregroundParticles" 
+            :key="p.id"
+            class="absolute rounded-full animate-rise-drift pointer-events-none"
+            :class="p.color"
+            :style="{
+              left: p.left,
+              bottom: p.bottom,
+              width: p.size,
+              height: p.size,
+              animationDuration: p.duration,
+              animationDelay: p.delay,
+              filter: `blur(${p.blur})`,
+              boxShadow: '0 0 10px currentColor',
+              '--drift-x': p.driftX
+            }"
+          />
+        </div>
+
+      </div>
+
+      <!-- Floating Damage Numbers -->
+      <div 
+        v-for="d in floatingDamages" 
+        :key="d.id"
+        class="fixed z-50 pointer-events-none font-mono font-black text-2xl animate-float-damage"
+        :class="d.value.includes('CRIT') ? 'text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.9)]' : 'text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.9)]'"
+        :style="{ left: `${d.x}px`, top: `${d.y}px` }"
+      >
+        {{ d.value }}
       </div>
 
       <!-- PROMINENT HP DISPLAY DIRECTLY UNDER BOSS -->
-      <div class="w-full max-w-sm mt-1 z-20 px-2">
+      <div class="w-full max-w-sm mt-1 z-30 px-2">
         <!-- Direct HP Numbers & Percentage -->
         <div class="flex items-center justify-between font-mono mb-2 px-1">
           <div class="flex items-center gap-1.5 text-white font-extrabold text-sm tracking-wider">
@@ -294,7 +347,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
     </div>
 
     <!-- WIDER ACTION BUTTONS (RICH UX / UI) -->
-    <div class="w-full max-w-sm space-y-2.5 mt-auto px-1">
+    <div class="w-full max-w-sm space-y-2.5 mt-auto px-1 z-30">
       
       <!-- FREE DAILY STRIKE (ATTACK + CLAIM 20 TOKENS) -->
       <button 
@@ -334,24 +387,39 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 </template>
 
 <style scoped>
-@keyframes rise {
+@keyframes riseDrift {
   0% {
-    transform: translateY(0) scale(0.6);
+    transform: translate3d(0, 30px, 0) scale(0.6);
     opacity: 0;
   }
-  20% {
-    opacity: 0.9;
+  15% {
+    opacity: 0.95;
   }
-  80% {
-    opacity: 0.6;
+  75% {
+    opacity: 0.7;
   }
   100% {
-    transform: translateY(-160px) scale(1.4);
+    transform: translate3d(var(--drift-x, 20px), -280px, 0) scale(1.3);
     opacity: 0;
   }
 }
 
-.animate-rise {
-  animation: rise linear infinite;
+.animate-rise-drift {
+  animation: riseDrift linear infinite;
+}
+
+@keyframes smokePulse {
+  0%, 100% {
+    transform: translate(-50%, 0) scale(0.9);
+    opacity: 0.2;
+  }
+  50% {
+    transform: translate(-50%, -20px) scale(1.15);
+    opacity: 0.35;
+  }
+}
+
+.animate-smoke-pulse {
+  animation: smokePulse 4s ease-in-out infinite;
 }
 </style>
