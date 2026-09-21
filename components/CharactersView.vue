@@ -137,6 +137,13 @@ const formatHp = (hp: number) => {
   return hp.toString();
 };
 
+const getBossImage = (boss: CharacterBoss) => {
+  if (props.isWhiteTheme && [3, 5, 8].includes(boss.level)) {
+    return `/bosses/boss_${boss.level}_white.jpg`;
+  }
+  return boss.image || `/bosses/boss_${boss.level}.jpg`;
+};
+
 const openBossDetail = (boss: CharacterBoss) => {
   selectedBoss.value = boss;
 };
@@ -184,8 +191,8 @@ const goToFight = () => {
         :class="isWhiteTheme ? 'bg-zinc-950 border-black/10' : 'bg-black border-white/10'"
       >
         <img 
-          v-if="selectedBoss.image" 
-          :src="selectedBoss.image" 
+          v-if="getBossImage(selectedBoss)" 
+          :src="getBossImage(selectedBoss)" 
           :alt="selectedBoss.name" 
           class="w-full h-full object-cover object-top opacity-90"
         />
@@ -319,8 +326,8 @@ const goToFight = () => {
         >
           <!-- 3D Boss Image with mystery styling for locked bosses -->
           <img 
-            v-if="boss.image" 
-            :src="boss.image" 
+            v-if="getBossImage(boss)" 
+            :src="getBossImage(boss)" 
             class="absolute inset-0 w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
             :class="boss.status === 'active' 
               ? 'opacity-90' 
