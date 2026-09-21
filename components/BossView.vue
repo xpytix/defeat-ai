@@ -32,6 +32,8 @@ const props = defineProps<{
   hasSword?: boolean;
   hasBow?: boolean;
   isWhiteTheme?: boolean;
+  totalStrikes?: number;
+  uniqueHumans?: number;
 }>();
 
 const emit = defineEmits<{
@@ -55,9 +57,15 @@ const bossImage = computed(() => {
   return `/bosses/boss_${props.level || 1}.png`;
 });
 
-// Simulated spectator counts
-const spectatorCount = ref('4.2K');
-const activeAttackerCount = ref(186);
+// Live or zeroed out stats for Eye and Battle icons
+const spectatorCount = computed(() => {
+  if (props.uniqueHumans !== undefined) return props.uniqueHumans.toString();
+  return '0';
+});
+const activeAttackerCount = computed(() => {
+  if (props.totalStrikes !== undefined) return props.totalStrikes;
+  return 0;
+});
 
 // Layered Volumetric Particles: Foreground & Background
 const foregroundParticles = ref<Particle[]>([]);

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { MiniKit, VerificationLevel, Tokens, tokenToDecimals } from '@worldcoin/minikit-js';
 import BossView from '~/components/BossView.vue';
+import CharactersView from '~/components/CharactersView.vue';
 import BottomNav from '~/components/BottomNav.vue';
 import ShopModal from '~/components/ShopModal.vue';
 
@@ -14,7 +15,7 @@ const UNISWAP_POOL_URL = 'https://app.uniswap.org/swap?chain=worldchain&inputCur
 const WORLDSCAN_TOKEN_URL = 'https://worldscan.org/token/0xb767B50e80084330Fe2bF5F2C3CA5d6E0b73B6f6';
 
 // Navigation State
-const activeTab = ref<'boss'>('boss');
+const activeTab = ref<'boss' | 'characters'>('boss');
 const toastMessage = ref<string | null>(null);
 const bossViewRef = ref<any>(null);
 
@@ -38,6 +39,8 @@ const currentBossLevel = ref(1);
 const maxHp = ref(50);
 const currentHp = ref(50);
 const bossName = ref('AutoCorrect');
+const totalStrikes = ref(0);
+const uniqueHumans = ref(0);
 const freeHitAvailable = ref(true);
 const nextFreeHitTime = ref<number | null>(null);
 const isSyncing = ref(false);
@@ -81,6 +84,8 @@ const fetchRaidState = async () => {
       bossName.value = res.raid.bossName;
       maxHp.value = res.raid.maxHp;
       currentHp.value = res.raid.currentHp;
+      totalStrikes.value = res.raid.totalStrikes || 0;
+      uniqueHumans.value = Object.keys(res.raid.contributors || {}).length;
     }
 
     if (res && res.player) {
@@ -167,6 +172,11 @@ onMounted(() => {
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer);
 });
+
+const handleFight = (level: number) => {
+  activeTab.value = 'boss';
+  showToast(`[SECTOR] LVL 0${currentBossLevel.value}: ${bossName.value}`);
+};
 
 // Handle Hit: Executes World ID ZK-SNARK verification for Free Daily Strike
 const handleHit = async (type: 'free' | 'power') => {
@@ -452,9 +462,10 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
     <!-- Clean Safe-Area Header Spacer -->
     <div class="pt-safe shrink-0" />
 
-    <!-- Main Arena View (Clean PROD Raid Boss) -->
+    <!-- Main Arena View (Raid Boss / Characters View) -->
     <main class="flex-1 min-h-0 flex flex-col overflow-hidden relative">
       <BossView 
+        v-if="activeTab === 'boss'"
         ref="bossViewRef"
         :current-hp="currentHp"
         :max-hp="maxHp"
@@ -466,17 +477,24 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
         :has-sword="hasSword"
         :has-bow="hasBow"
         :is-white-theme="isWhiteTheme"
+        :total-strikes="totalStrikes"
+        :unique-humans="uniqueHumans"
         @hit="handleHit"
         @open-shop="isShopOpen = true"
       />
+      <CharactersView
+        v-else-if="activeTab === 'characters'"
+        :current-level="currentBossLevel"
+        :is-white-theme="isWhiteTheme"
+        @fight="handleFight"
+      />
     </main>
 
-    <!-- Minimalist Bottom Navigation (RAID / ARMORY) -->
+    <!-- Minimalist Bottom Navigation (BOSS / CHARACTERS) -->
     <BottomNav 
       :active-tab="activeTab" 
       :is-white-theme="isWhiteTheme"
       @update:active-tab="activeTab = $event" 
-      @open-armory="isShopOpen = true"
     />
 
     <!-- Cyber Armory Shop Modal (Triggered by clicking token balance or Armory) -->
