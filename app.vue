@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { MiniKit, VerificationLevel, Tokens, tokenToDecimals } from '@worldcoin/minikit-js';
 import BossView from '~/components/BossView.vue';
-import CharactersView from '~/components/CharactersView.vue';
 import BottomNav from '~/components/BottomNav.vue';
 import ShopModal from '~/components/ShopModal.vue';
 
@@ -15,7 +14,7 @@ const UNISWAP_POOL_URL = 'https://app.uniswap.org/swap?chain=worldchain&inputCur
 const WORLDSCAN_TOKEN_URL = 'https://worldscan.org/token/0xb767B50e80084330Fe2bF5F2C3CA5d6E0b73B6f6';
 
 // Navigation State
-const activeTab = ref<'boss' | 'characters'>('boss');
+const activeTab = ref<'boss'>('boss');
 const toastMessage = ref<string | null>(null);
 const bossViewRef = ref<any>(null);
 
@@ -26,9 +25,8 @@ const isInsideWorldApp = ref(false);
 const showWorldAppModal = ref(false);
 const isVerifying = ref(false);
 
-// User Token Balance ($DEF) & WLD Balance (Pristine clean start)
+// User Token Balance ($DEF) (Pristine clean start)
 const userTokens = ref(0);
-const userWld = ref(250); // Pre-funded balance for testing
 
 // Armory & Weapon Inventory
 const hasSword = ref(false); // Quantum Plasma Blade: 2x daily strike damage (-2 HP) & 2x tokens (+40 $DEF)
@@ -144,9 +142,6 @@ onMounted(() => {
     const savedTokens = localStorage.getItem('defeat_ai_user_tokens');
     if (savedTokens) userTokens.value = parseInt(savedTokens, 10);
 
-    const savedWld = localStorage.getItem('defeat_ai_user_wld');
-    if (savedWld) userWld.value = parseInt(savedWld, 10);
-
     const savedSword = localStorage.getItem('defeat_ai_has_sword');
     if (savedSword) hasSword.value = savedSword === 'true';
 
@@ -174,20 +169,6 @@ onMounted(() => {
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer);
 });
-
-const selectBoss = (lvl: number) => {
-  const target = BOSS_LIST.find(b => b.level === lvl) || BOSS_LIST[0];
-  currentBossLevel.value = target.level;
-  bossName.value = target.name;
-  maxHp.value = target.maxHp;
-  currentHp.value = target.maxHp;
-  showToast(`[SECTOR] LVL 0${target.level}: ${target.name}`);
-};
-
-const handleFight = (level: number) => {
-  selectBoss(level);
-  activeTab.value = 'boss';
-};
 
 // Handle Hit: Executes World ID ZK-SNARK verification for Free Daily Strike
 const handleHit = async (type: 'free' | 'power') => {
@@ -324,11 +305,9 @@ const handleHit = async (type: 'free' | 'power') => {
         return;
       }
     } else {
-      if (userWld.value < 2) {
-        showToast('Insufficient WLD balance');
-        return;
-      }
-      userWld.value -= 2;
+      showToast('Open inside World App to execute Power Strike with WLD');
+      showWorldAppModal.value = true;
+      return;
     }
 
     // Call server for power strike
@@ -383,11 +362,9 @@ const handleBuyItem = async (item: 'sword' | 'bow') => {
       return;
     }
   } else {
-    if (userWld.value < 200) {
-      showToast('Insufficient WLD balance');
-      return;
-    }
-    userWld.value -= 200;
+    showToast('Open inside World App to equip weapon with WLD');
+    showWorldAppModal.value = true;
+    return;
   }
 
   if (item === 'sword') {
@@ -403,7 +380,6 @@ const handleBuyItem = async (item: 'sword' | 'bow') => {
   }
 
   if (typeof window !== 'undefined') {
-    localStorage.setItem('defeat_ai_user_wld', userWld.value.toString());
     localStorage.setItem('defeat_ai_has_sword', hasSword.value.toString());
     localStorage.setItem('defeat_ai_has_bow', hasBow.value.toString());
   }
@@ -418,14 +394,6 @@ const handleBuyItem = async (item: 'sword' | 'bow') => {
       hasBow: hasBow.value
     }
   }).catch(() => {});
-};
-
-const handleAddWld = (amount: number) => {
-  userWld.value += amount;
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('defeat_ai_user_wld', userWld.value.toString());
-  }
-  showToast(`🪙 Added +${amount} WLD test balance`);
 };
 
 const handleClaimTokens = async (claimData: { amount: number; address: string }) => {
@@ -452,12 +420,6 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
     const errData = err.data || {};
     showToast(`Claim error: ${errData.error || err.message}`);
   }
-};
-
-// Dev simulator strike for desktop browser
-const executeDevTestStrike = () => {
-  showWorldAppModal.value = false;
-  handleHit('free');
 };
 </script>
 
@@ -490,11 +452,10 @@ const executeDevTestStrike = () => {
     <!-- Clean Safe-Area Header Spacer -->
     <div class="pt-safe shrink-0" />
 
-    <!-- Main View Switcher (Instant crisp switching, zero fade lag) -->
+    <!-- Main Arena View (Clean PROD Raid Boss) -->
     <main class="flex-1 min-h-0 flex flex-col overflow-hidden relative">
       <BossView 
         ref="bossViewRef"
-        v-if="activeTab === 'boss'" 
         :current-hp="currentHp"
         :max-hp="maxHp"
         :level="currentBossLevel"
@@ -506,36 +467,28 @@ const executeDevTestStrike = () => {
         :has-bow="hasBow"
         :is-white-theme="isWhiteTheme"
         @hit="handleHit"
-        @select-level="selectBoss"
         @open-shop="isShopOpen = true"
-      />
-      <CharactersView 
-        v-else-if="activeTab === 'characters'" 
-        :current-level="currentBossLevel"
-        :is-white-theme="isWhiteTheme"
-        @fight="handleFight"
       />
     </main>
 
-    <!-- Minimalist Bottom Navigation -->
+    <!-- Minimalist Bottom Navigation (RAID / ARMORY) -->
     <BottomNav 
       :active-tab="activeTab" 
       :is-white-theme="isWhiteTheme"
       @update:active-tab="activeTab = $event" 
+      @open-armory="isShopOpen = true"
     />
 
-    <!-- Cyber Armory Shop Modal (Triggered by clicking token balance) -->
+    <!-- Cyber Armory Shop Modal (Triggered by clicking token balance or Armory) -->
     <ShopModal 
       :is-open="isShopOpen"
       :user-tokens="userTokens"
-      :user-wld="userWld"
       :has-sword="hasSword"
       :has-bow="hasBow"
       :is-white-theme="isWhiteTheme"
       :player-address="playerId.startsWith('0x') ? playerId : ''"
       @close="isShopOpen = false"
       @buy-item="handleBuyItem"
-      @add-wld="handleAddWld"
       @claim="handleClaimTokens"
     />
 
@@ -562,13 +515,6 @@ const executeDevTestStrike = () => {
           >
             Open in World App
           </a>
-          <button 
-            type="button"
-            @click="executeDevTestStrike"
-            class="w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-mono text-[11px] transition-colors"
-          >
-            Test Strike (Dev Simulator)
-          </button>
           <button 
             type="button"
             @click="showWorldAppModal = false"

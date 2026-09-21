@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { Crosshair, LayoutGrid } from 'lucide-vue-next';
+import { Crosshair, ShieldCheck } from 'lucide-vue-next';
 
 defineProps<{
-  activeTab: 'boss' | 'characters';
+  activeTab?: string;
   isWhiteTheme?: boolean;
 }>();
 
 const emit = defineEmits<{
-  (e: 'update:activeTab', tab: 'boss' | 'characters'): void
+  (e: 'update:activeTab', tab: 'boss'): void;
+  (e: 'openArmory'): void;
 }>();
 
-const selectTab = (tab: 'boss' | 'characters') => {
-  emit('update:activeTab', tab);
+const handleArmory = () => {
+  emit('openArmory');
   if (typeof window !== 'undefined' && 'vibrate' in navigator) {
     navigator.vibrate(10);
   }
@@ -27,20 +28,17 @@ const selectTab = (tab: 'boss' | 'characters') => {
   >
     <div class="max-w-xs sm:max-w-sm mx-auto px-6 py-2 flex items-center justify-around">
       
-      <!-- TAB 1: BOSS -->
+      <!-- TAB 1: RAID ARENA -->
       <button 
-        @click="selectTab('boss')"
+        @click="emit('update:activeTab', 'boss')"
         class="flex-1 flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-all duration-200"
-        :class="activeTab === 'boss' 
-          ? (isWhiteTheme ? 'text-zinc-950 font-bold' : 'text-white') 
-          : (isWhiteTheme ? 'text-zinc-400 hover:text-zinc-700' : 'text-zinc-600 hover:text-zinc-400')"
+        :class="isWhiteTheme ? 'text-zinc-950 font-bold' : 'text-white'"
       >
         <Crosshair 
-          class="w-5 h-5 transition-transform duration-200" 
-          :class="activeTab === 'boss' ? 'text-rose-500 scale-110' : ''" 
+          class="w-5 h-5 transition-transform duration-200 text-rose-500 scale-110" 
         />
         <span class="text-[10px] font-mono tracking-widest uppercase mt-1 font-semibold">
-          BOSS
+          RAID
         </span>
       </button>
 
@@ -49,20 +47,17 @@ const selectTab = (tab: 'boss' | 'characters') => {
         :class="isWhiteTheme ? 'bg-black/10' : 'bg-white/10'"
       ></div>
 
-      <!-- TAB 2: CHARACTERS -->
+      <!-- TAB 2: ARMORY (Opens Shop & Gear) -->
       <button 
-        @click="selectTab('characters')"
+        @click="handleArmory"
         class="flex-1 flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-all duration-200"
-        :class="activeTab === 'characters' 
-          ? (isWhiteTheme ? 'text-zinc-950 font-bold' : 'text-white') 
-          : (isWhiteTheme ? 'text-zinc-400 hover:text-zinc-700' : 'text-zinc-600 hover:text-zinc-400')"
+        :class="isWhiteTheme ? 'text-zinc-500 hover:text-zinc-900' : 'text-zinc-500 hover:text-zinc-200'"
       >
-        <LayoutGrid 
-          class="w-5 h-5 transition-transform duration-200" 
-          :class="activeTab === 'characters' ? 'text-cyan-500 scale-110' : ''" 
+        <ShieldCheck 
+          class="w-5 h-5 transition-transform duration-200 text-emerald-400" 
         />
         <span class="text-[10px] font-mono tracking-widest uppercase mt-1 font-semibold">
-          CHARACTERS
+          ARMORY
         </span>
       </button>
 

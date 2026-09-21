@@ -36,7 +36,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'hit', type: 'free' | 'power'): void;
-  (e: 'selectLevel', level: number): void;
   (e: 'openShop'): void;
 }>();
 
@@ -341,44 +340,22 @@ const formatTokens = (val: number) => {
     @touchend="resetTilt"
   >
 
-    <!-- TOP STATUS ROW WITH NAVIGATION ARROWS (CLEAN & MINIMAL) -->
+    <!-- TOP STATUS ROW (CLEAN PROD RAID STATUS) -->
     <div class="w-full shrink-0 flex flex-col space-y-1 pt-1 px-1">
       
       <!-- Upper Status Row -->
       <div class="flex items-center justify-between gap-2 min-w-0">
-        <div class="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-1 overflow-hidden">
-          <button 
-            @click="emit('selectLevel', Math.max(1, level - 1))"
-            :disabled="level <= 1"
-            class="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center disabled:opacity-20 text-sm font-bold transition-all active:scale-95"
-            :class="isWhiteTheme 
-              ? 'text-zinc-700 hover:text-black bg-black/5 hover:bg-black/10 border border-black/10 disabled:hover:text-zinc-700' 
-              : 'text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 disabled:hover:text-zinc-400'"
-            title="Previous Boss"
-          >
-            ‹
-          </button>
+        <div class="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 overflow-hidden">
           <span 
-            class="shrink-0 text-xs font-mono font-black px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md border tracking-wider"
+            class="shrink-0 text-xs font-mono font-black px-2.5 py-0.5 sm:py-1 rounded-md border tracking-wider"
             :class="level === 8 
               ? (isWhiteTheme ? 'text-amber-900 bg-amber-200 border-amber-400 shadow-sm' : 'text-amber-300 bg-amber-400/20 border-amber-400/40') 
               : (isWhiteTheme ? 'text-zinc-950 bg-black/5 border-black/15' : 'text-rose-500 bg-rose-500/10 border-rose-500/20')"
           >
             LVL {{ String(level).padStart(2, '0') }}
           </span>
-          <button 
-            @click="emit('selectLevel', Math.min(8, level + 1))"
-            :disabled="level >= 8"
-            class="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center disabled:opacity-20 text-sm font-bold transition-all active:scale-95"
-            :class="isWhiteTheme 
-              ? 'text-zinc-700 hover:text-black bg-black/5 hover:bg-black/10 border border-black/10 disabled:hover:text-zinc-700' 
-              : 'text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 disabled:hover:text-zinc-400'"
-            title="Next Boss"
-          >
-            ›
-          </button>
           <span 
-            class="text-xs sm:text-sm font-mono tracking-widest font-black uppercase truncate min-w-0 ml-0.5"
+            class="text-xs sm:text-sm font-mono tracking-widest font-black uppercase truncate min-w-0"
             :class="isWhiteTheme ? 'text-zinc-950' : 'text-zinc-200'"
           >
             {{ bossName }}

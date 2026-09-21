@@ -5,7 +5,6 @@ import { X, Check, Sparkles, Coins, ShieldCheck, ExternalLink, ArrowUpRight, Wal
 const props = defineProps<{
   isOpen: boolean;
   userTokens: number;
-  userWld: number;
   hasSword: boolean;
   hasBow: boolean;
   isWhiteTheme?: boolean;
@@ -15,7 +14,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'buyItem', item: 'sword' | 'bow'): void;
-  (e: 'addWld', amount: number): void;
   (e: 'claim', data: { amount: number; address: string }): void;
 }>();
 
@@ -48,16 +46,11 @@ const handlePurchase = (item: 'sword' | 'bow') => {
   if (item === 'sword' && props.hasSword) return;
   if (item === 'bow' && props.hasBow) return;
 
-  if (props.userWld < 200) {
-    alert('Insufficient WLD balance. Click "+200" to add test funds.');
-    return;
-  }
-
   isProcessing.value = item;
   setTimeout(() => {
     isProcessing.value = null;
     emit('buyItem', item);
-  }, 350);
+  }, 200);
 };
 
 const formatTokens = (val: number) => {
@@ -112,27 +105,18 @@ const formatTokens = (val: number) => {
         </button>
       </div>
 
-      <!-- Balances Bar -->
+      <!-- Status & DEF Balance Bar -->
       <div 
-        class="px-4 py-2 flex items-center justify-between border-b text-xs font-mono shrink-0"
+        class="px-4 py-2.5 flex items-center justify-between border-b text-xs font-mono shrink-0"
         :class="isWhiteTheme ? 'bg-black/[0.02] border-black/10' : 'bg-white/[0.02] border-white/5'"
       >
-        <!-- WLD Balance & Test Faucet -->
-        <div class="flex items-center gap-1.5">
-          <span class="text-[10px] uppercase opacity-50 font-semibold">Wallet:</span>
-          <span class="font-black" :class="isWhiteTheme ? 'text-zinc-900' : 'text-zinc-100'">
-            {{ userWld.toLocaleString() }} WLD
+        <!-- Native Payment Badge -->
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="text-[11px] font-semibold tracking-wide" :class="isWhiteTheme ? 'text-zinc-800' : 'text-zinc-200'">
+            World App Pay
           </span>
-          <button 
-            @click="emit('addWld', 200)"
-            class="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border transition-all active:scale-95 ml-1"
-            :class="isWhiteTheme 
-              ? 'bg-emerald-50 border-emerald-500/30 text-emerald-700 hover:bg-emerald-100' 
-              : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'"
-            title="Add test WLD tokens"
-          >
-            +200
-          </button>
+          <span class="text-[10px] opacity-50">· World Chain</span>
         </div>
 
         <!-- DEF Balance -->
