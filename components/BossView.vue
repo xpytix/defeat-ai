@@ -29,12 +29,15 @@ const props = defineProps<{
   freeHitAvailable: boolean;
   nextFreeHitTime: number | null;
   userTokens: number;
+  hasSword?: boolean;
+  hasBow?: boolean;
   isWhiteTheme?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'hit', type: 'free' | 'power'): void;
   (e: 'selectLevel', level: number): void;
+  (e: 'openShop'): void;
 }>();
 
 // 3D Parallax Tilt State
@@ -256,7 +259,9 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
   floatingDamages.value.push({
     id,
-    value: type === 'power' ? '-1 CRIT (+20)' : '-1 HP (+20)',
+    value: type === 'power' 
+      ? '-1 CRIT (+20)' 
+      : (props.hasSword ? '-2 PLASMA (+40)' : '-1 HP (+20)'),
     x: clientX + (Math.random() * 40 - 20),
     y: clientY - 30
   });
@@ -339,14 +344,19 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           </button>
         </div>
 
-        <!-- Token Balance -->
+        <!-- Token Balance (Click to Open Armory / Shop) -->
         <div 
-          class="flex items-center gap-1.5 px-3 py-1 rounded-full text-amber-500 font-bold shadow-sm transition-colors"
-          :class="isWhiteTheme ? 'bg-black/[0.04] border border-black/10' : 'bg-white/[0.05] border border-white/10'"
+          @click="emit('openShop')"
+          class="flex items-center gap-1.5 px-3 py-1 rounded-full text-amber-500 font-bold shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95 group"
+          :class="isWhiteTheme ? 'bg-black/[0.04] border border-black/10 hover:bg-black/[0.08]' : 'bg-white/[0.05] border border-white/10 hover:bg-white/[0.1]'"
+          title="Open Cyber Armory Store"
         >
-          <Coins class="w-3.5 h-3.5 text-amber-500" />
+          <Coins class="w-3.5 h-3.5 text-amber-500 group-hover:rotate-12 transition-transform" />
           <span class="text-xs font-mono font-black">{{ userTokens.toLocaleString() }}</span>
-          <span class="text-[9px] font-mono font-normal" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">$HVAI</span>
+          <span class="text-[9px] font-mono font-normal" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">$DEFEAT</span>
+          <span class="text-[9px] px-1 py-0.2 rounded font-mono font-bold ml-0.5"
+            :class="isWhiteTheme ? 'bg-black/10 text-black' : 'bg-amber-500/20 text-amber-400'"
+          >+</span>
         </div>
       </div>
 
@@ -544,7 +554,27 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
     <!-- WIDER ACTION BUTTONS (ALWAYS VISIBLE ABOVE BOTTOM NAV ON ANY SCREEN) -->
     <div class="w-full shrink-0 max-w-[420px] sm:max-w-[480px] md:max-w-[540px] space-y-2 mt-2 px-1 z-30">
       
-      <!-- FREE DAILY STRIKE (ATTACK + CLAIM 20 TOKENS) -->
+      <!-- ACTIVE GEAR PERKS PILL (If Sword or Bow Owned) -->
+      <div v-if="hasSword || hasBow" class="flex items-center justify-center gap-2 pb-0.5 flex-wrap">
+        <button 
+          v-if="hasSword" 
+          @click="emit('openShop')"
+          class="flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-cyan-500/40 bg-cyan-500/10 text-cyan-400 font-mono text-[10px] font-bold shadow-sm cursor-pointer hover:bg-cyan-500/20 active:scale-95 transition-all"
+        >
+          <Swords class="w-3 h-3" />
+          <span>Plasma Blade (2x DMG & Spoils)</span>
+        </button>
+        <button 
+          v-if="hasBow" 
+          @click="emit('openShop')"
+          class="flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-violet-500/40 bg-violet-500/10 text-violet-400 font-mono text-[10px] font-bold shadow-sm cursor-pointer hover:bg-violet-500/20 active:scale-95 transition-all"
+        >
+          <Zap class="w-3 h-3" />
+          <span>Chrono-Bow (12h Cooldown)</span>
+        </button>
+      </div>
+
+      <!-- FREE DAILY STRIKE (ATTACK + CLAIM TOKENS) -->
       <button 
         v-if="freeHitAvailable"
         @click="triggerHit('free', $event)"
@@ -553,7 +583,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           ? 'bg-black text-white hover:bg-zinc-800 shadow-[0_4px_20px_rgba(0,0,0,0.2)] border border-black' 
           : 'bg-gradient-to-r from-white via-zinc-100 to-zinc-200 text-black hover:bg-white shadow-[0_0_20px_rgba(255,255,255,0.2)] border border-white'"
       >
-        <span>💥 STRIKE & CLAIM (+20 $HVAI)</span>
+        <span>💥 {{ hasSword ? 'PLASMA STRIKE (-2 HP)' : 'STRIKE & CLAIM' }} (+{{ hasSword ? 40 : 20 }} $DEFEAT)</span>
       </button>
 
       <!-- COUNTDOWN TIMER IF ALREADY CLAIMED TODAY -->
@@ -565,10 +595,11 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           : 'bg-white/[0.04] border border-white/10 text-zinc-400'"
       >
         <span 
-          class="text-[10px] uppercase tracking-wider font-semibold"
+          class="text-[10px] uppercase tracking-wider font-semibold flex items-center gap-1.5"
           :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-500'"
         >
-          Daily Strike Claimed
+          <span>Daily Strike Claimed</span>
+          <span v-if="hasBow" class="text-[9px] px-1.5 py-0.2 rounded bg-violet-500/20 text-violet-400 font-mono font-bold border border-violet-500/30">12H CD</span>
         </span>
         <span 
           class="font-black text-xs sm:text-sm"
@@ -588,7 +619,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
       >
         <div class="flex items-center gap-2">
           <Zap class="w-3.5 h-3.5 text-cyan-500 fill-cyan-500" />
-          <span class="text-[11px] sm:text-xs font-mono tracking-wider font-extrabold uppercase">Power Strike (+20 $HVAI)</span>
+          <span class="text-[11px] sm:text-xs font-mono tracking-wider font-extrabold uppercase">Power Strike (+20 $DEFEAT)</span>
         </div>
         <span 
           class="text-[11px] sm:text-xs font-mono font-black px-2 py-0.5 rounded-md border"

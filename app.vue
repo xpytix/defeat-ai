@@ -3,13 +3,20 @@ import { ref, computed, onMounted } from 'vue';
 import BossView from '~/components/BossView.vue';
 import CharactersView from '~/components/CharactersView.vue';
 import BottomNav from '~/components/BottomNav.vue';
+import ShopModal from '~/components/ShopModal.vue';
 
 // Navigation State
 const activeTab = ref<'boss' | 'characters'>('boss');
 const toastMessage = ref<string | null>(null);
 
-// User Token Balance (Earned from Daily Strikes & Raid Contributions)
+// User Token Balance ($DEFEAT) & WLD Balance
 const userTokens = ref(40);
+const userWld = ref(250); // Pre-funded with 250 WLD for immediate testing
+
+// Armory & Weapon Inventory
+const hasSword = ref(false); // Quantum Plasma Blade: 2x daily strike damage (-2 HP) & 2x tokens (+40 $DEFEAT)
+const hasBow = ref(false);   // Tachyon Chrono-Bow: -50% cooldown (12h instead of 24h)
+const isShopOpen = ref(false);
 
 // Game State
 const currentBossLevel = ref(1);
@@ -35,10 +42,26 @@ onMounted(() => {
       userTokens.value = parseInt(savedTokens, 10);
     }
 
+    const savedWld = localStorage.getItem('defeat_ai_user_wld');
+    if (savedWld) {
+      userWld.value = parseInt(savedWld, 10);
+    }
+
+    const savedSword = localStorage.getItem('defeat_ai_has_sword');
+    if (savedSword) {
+      hasSword.value = savedSword === 'true';
+    }
+
+    const savedBow = localStorage.getItem('defeat_ai_has_bow');
+    if (savedBow) {
+      hasBow.value = savedBow === 'true';
+    }
+
     const savedLastHit = localStorage.getItem('defeat_ai_last_free_hit');
     if (savedLastHit) {
       const lastHitTime = parseInt(savedLastHit, 10);
-      const cooldown = 24 * 60 * 60 * 1000;
+      const cooldownHours = hasBow.value ? 12 : 24;
+      const cooldown = cooldownHours * 60 * 60 * 1000;
       const expiry = lastHitTime + cooldown;
       if (Date.now() < expiry) {
         freeHitAvailable.value = false;
@@ -84,51 +107,109 @@ const handleFight = (level: number) => {
   activeTab.value = 'boss';
 };
 
-// Handle Hit from BossView (Flat 20 $HVAI per strike)
+// Handle Hit from BossView (Flat 20 $DEFEAT per strike, or 40 if Plasma Blade equipped)
 const handleHit = (type: 'free' | 'power') => {
   if (type === 'free') {
     if (!freeHitAvailable.value) {
-      showToast('Daily strike available once every 24h');
+      const cooldownText = hasBow.value ? '12h' : '24h';
+      showToast(`Daily strike available once every ${cooldownText}`);
       return;
     }
     freeHitAvailable.value = false;
-    const expiry = Date.now() + 24 * 60 * 60 * 1000;
+    const cooldownHours = hasBow.value ? 12 : 24;
+    const expiry = Date.now() + cooldownHours * 60 * 60 * 1000;
     nextFreeHitTime.value = expiry;
 
-    // Daily strike mints / claims flat 20 tokens!
-    userTokens.value += 20;
+    // Daily strike: 2x tokens if sword equipped (+40), else +20 $DEFEAT
+    const tokensEarned = hasSword.value ? 40 : 20;
+    userTokens.value += tokensEarned;
+
+    // Damage: 2x if sword equipped (-2 HP), else -1 HP
+    const damageDealt = hasSword.value ? 2 : 1;
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('defeat_ai_last_free_hit', Date.now().toString());
       localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
     }
-    showToast('💥 Strike confirmed (-1 HP) · Claimed +20 $HVAI');
+    showToast(hasSword.value 
+      ? '⚔️ Plasma Strike (-2 HP) · Claimed +40 $DEFEAT' 
+      : '💥 Strike confirmed (-1 HP) · Claimed +20 $DEFEAT');
+
+    // Deduct HP
+    if (currentHp.value > 0) {
+      currentHp.value = Math.max(0, currentHp.value - damageDealt);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('defeat_ai_current_hp', currentHp.value.toString());
+      }
+
+      // Boss Defeated
+      if (currentHp.value <= 0) {
+        showToast(`🎉 ${bossName.value} defeated!`);
+        setTimeout(() => {
+          if (currentBossLevel.value < 8) {
+            selectBoss(currentBossLevel.value + 1);
+          }
+        }, 1500);
+      }
+    }
   } else {
-    // Power strike gives 20 tokens + 1 extra attack
+    // Power strike gives 20 tokens + 1 extra attack (-1 HP)
     userTokens.value += 20;
     if (typeof window !== 'undefined') {
       localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
     }
-    showToast('⚡ Power Strike confirmed (-1 HP) · +20 $HVAI');
-  }
+    showToast('⚡ Power Strike confirmed (-1 HP) · +20 $DEFEAT');
 
-  // Deduct HP
-  if (currentHp.value > 0) {
-    currentHp.value -= 1;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('defeat_ai_current_hp', currentHp.value.toString());
-    }
+    if (currentHp.value > 0) {
+      currentHp.value -= 1;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('defeat_ai_current_hp', currentHp.value.toString());
+      }
 
-    // Boss Defeated
-    if (currentHp.value <= 0) {
-      showToast(`🎉 ${bossName.value} defeated!`);
-      setTimeout(() => {
-        if (currentBossLevel.value < 8) {
-          selectBoss(currentBossLevel.value + 1);
-        }
-      }, 1500);
+      if (currentHp.value <= 0) {
+        showToast(`🎉 ${bossName.value} defeated!`);
+        setTimeout(() => {
+          if (currentBossLevel.value < 8) {
+            selectBoss(currentBossLevel.value + 1);
+          }
+        }, 1500);
+      }
     }
   }
+};
+
+// Purchase Gear from Cyber Armory Shop
+const handleBuyItem = (item: 'sword' | 'bow') => {
+  if (userWld.value < 200) {
+    showToast('Insufficient WLD balance');
+    return;
+  }
+  userWld.value -= 200;
+  if (item === 'sword') {
+    hasSword.value = true;
+    showToast('⚔️ Quantum Plasma Blade equipped! 2x Damage & 2x Tokens active.');
+  } else if (item === 'bow') {
+    hasBow.value = true;
+    showToast('🏹 Tachyon Chrono-Bow equipped! Daily cooldown reduced to 12h.');
+    if (nextFreeHitTime.value) {
+      const remaining = Math.max(0, nextFreeHitTime.value - Date.now());
+      nextFreeHitTime.value = Date.now() + Math.round(remaining / 2);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('defeat_ai_user_wld', userWld.value.toString());
+    localStorage.setItem('defeat_ai_has_sword', hasSword.value.toString());
+    localStorage.setItem('defeat_ai_has_bow', hasBow.value.toString());
+  }
+};
+
+const handleAddWld = (amount: number) => {
+  userWld.value += amount;
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('defeat_ai_user_wld', userWld.value.toString());
+  }
+  showToast(`🪙 Added +${amount} WLD test balance`);
 };
 </script>
 
@@ -172,9 +253,12 @@ const handleHit = (type: 'free' | 'power') => {
         :free-hit-available="freeHitAvailable"
         :next-free-hit-time="nextFreeHitTime"
         :user-tokens="userTokens"
+        :has-sword="hasSword"
+        :has-bow="hasBow"
         :is-white-theme="isWhiteTheme"
         @hit="handleHit"
         @select-level="selectBoss"
+        @open-shop="isShopOpen = true"
       />
       <CharactersView 
         v-else-if="activeTab === 'characters'" 
@@ -189,6 +273,19 @@ const handleHit = (type: 'free' | 'power') => {
       :active-tab="activeTab" 
       :is-white-theme="isWhiteTheme"
       @update:active-tab="activeTab = $event" 
+    />
+
+    <!-- Cyber Armory Shop Modal (Triggered by clicking token balance) -->
+    <ShopModal 
+      :is-open="isShopOpen"
+      :user-tokens="userTokens"
+      :user-wld="userWld"
+      :has-sword="hasSword"
+      :has-bow="hasBow"
+      :is-white-theme="isWhiteTheme"
+      @close="isShopOpen = false"
+      @buy-item="handleBuyItem"
+      @add-wld="handleAddWld"
     />
 
   </div>

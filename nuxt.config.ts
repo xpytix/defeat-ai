@@ -5,7 +5,7 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: "Human vs AI - The Resistance (World App)",
+      title: "Defeat AI (World App)",
       meta: [
         { charset: "utf-8" },
         {

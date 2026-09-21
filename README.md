@@ -1,4 +1,4 @@
-# Defeat AI - Human vs AI: The Resistance
+# Defeat AI
 
 A collaborative PWA Mini App for the World App ecosystem.
 

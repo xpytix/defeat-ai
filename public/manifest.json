@@ -1,6 +1,6 @@
 {
-  "name": "Human vs AI: The Resistance",
-  "short_name": "Human vs AI",
+  "name": "Defeat AI",
+  "short_name": "Defeat AI",
   "description": "Cooperative AI raid boss battle for verified World App humans.",
   "start_url": "/",
   "display": "standalone",
