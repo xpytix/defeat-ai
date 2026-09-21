@@ -8,7 +8,7 @@ import ShopModal from '~/components/ShopModal.vue';
 
 // App & Treasury Configuration
 const APP_ID = 'app_00e63093c3a6d36ace61c9b587ffcdf8';
-const TREASURY_WALLET = '0xB42b59446AF0F39bb3b91D7CC50327997484742e';
+const TREASURY_WALLET = '0x435cf6a63fbc5bc8f4d2b8d0dd02ab16ac45e9aa';
 
 // Navigation State
 const activeTab = ref<'boss' | 'characters'>('boss');
