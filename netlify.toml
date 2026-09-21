@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build"
+  command = "npm i --no-save @oxc-parser/binding-linux-x64-gnu @oxc-transform/binding-linux-x64-gnu && npm run build"
   publish = "dist"
 
 [build.environment]
