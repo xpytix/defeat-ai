@@ -32,8 +32,8 @@ const countdownText = ref('24:00:00');
 let countdownInterval: any = null;
 
 // Simulated spectator counts
-const spectatorCount = ref('3.4K');
-const activeAttackerCount = ref(128);
+const spectatorCount = ref('4.2K');
+const activeAttackerCount = ref(186);
 
 // HP Percentage
 const hpPercent = computed(() => {
@@ -106,7 +106,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
   floatingDamages.value.push({
     id,
-    value: type === 'power' ? '-1 CRIT' : '-1 HP',
+    value: type === 'power' ? '-1 CRIT (+20 $HVAI)' : '-1 HP (+20 $HVAI)',
     x: clientX + (Math.random() * 40 - 20),
     y: clientY - 30
   });
@@ -143,7 +143,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
       <!-- User Token Balance -->
       <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/5 text-amber-400 font-bold">
         <Coins class="w-3 h-3 text-amber-400" />
-        <span class="text-[11px]">{{ userTokens }}</span>
+        <span class="text-[11px]">{{ userTokens.toLocaleString() }}</span>
         <span class="text-[9px] text-zinc-500">$HVAI</span>
       </div>
     </div>
@@ -174,7 +174,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
       <div 
         v-for="d in floatingDamages" 
         :key="d.id"
-        class="fixed z-50 pointer-events-none font-mono font-black text-2xl animate-float-damage"
+        class="fixed z-50 pointer-events-none font-mono font-black text-lg animate-float-damage"
         :class="d.value.includes('CRIT') ? 'text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.9)]' : 'text-rose-500 drop-shadow-[0_0_12px_rgba(244,63,94,0.9)]'"
         :style="{ left: `${d.x}px`, top: `${d.y}px` }"
       >
@@ -215,9 +215,9 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
         <div class="flex items-center justify-between font-mono mb-1.5 px-1">
           <div class="flex items-center gap-1.5 text-white font-extrabold text-sm tracking-wider">
             <Heart class="w-4 h-4 text-rose-500 fill-rose-500" />
-            <span>{{ currentHp }}</span>
+            <span>{{ currentHp.toLocaleString() }}</span>
             <span class="text-zinc-600 font-normal">/</span>
-            <span class="text-zinc-400 font-normal">{{ maxHp }} HP</span>
+            <span class="text-zinc-400 font-normal">{{ maxHp.toLocaleString() }} HP</span>
           </div>
           <span class="text-xs font-mono font-bold text-zinc-400">{{ hpPercent }}%</span>
         </div>
@@ -234,16 +234,16 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
     </div>
 
-    <!-- ACTION BUTTONS (DAILY STRIKE = ATTACK + CLAIM TOKEN) -->
+    <!-- ACTION BUTTONS (EACH HIT GIVES FIXED 20 $HVAI) -->
     <div class="w-full max-w-[280px] space-y-2 mt-auto">
       
-      <!-- FREE DAILY STRIKE (ATTACK + CLAIM 1 TOKEN) -->
+      <!-- FREE DAILY STRIKE (ATTACK + CLAIM 20 TOKENS) -->
       <button 
         v-if="freeHitAvailable"
         @click="triggerHit('free', $event)"
         class="w-full py-3.5 px-5 rounded-xl bg-white text-black font-extrabold text-xs tracking-wider uppercase hover:bg-zinc-200 active:scale-[0.98] transition-all shadow-[0_0_30px_rgba(255,255,255,0.15)] flex items-center justify-center gap-2"
       >
-        <span>💥 STRIKE & CLAIM (+1 $HVAI)</span>
+        <span>💥 STRIKE & CLAIM (+20 $HVAI)</span>
       </button>
 
       <!-- COUNTDOWN TIMER IF ALREADY CLAIMED TODAY -->
@@ -255,14 +255,14 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
         <span class="font-bold text-zinc-300">⏳ {{ countdownText }}</span>
       </div>
 
-      <!-- POWER STRIKE BUTTON -->
+      <!-- POWER STRIKE BUTTON (2 WLD = ATTACK + 20 TOKENS) -->
       <button 
         @click="triggerHit('power', $event)"
         class="w-full py-2.5 px-4 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 active:scale-[0.98] transition-all flex items-center justify-between text-zinc-400 hover:text-white"
       >
         <div class="flex items-center gap-1.5">
           <Zap class="w-3.5 h-3.5 text-cyan-400 fill-cyan-400" />
-          <span class="text-[10px] font-mono tracking-wider font-semibold uppercase">Power Strike (+1 Attack)</span>
+          <span class="text-[10px] font-mono tracking-wider font-semibold uppercase">Power Strike (+20 $HVAI)</span>
         </div>
         <span class="text-[10px] font-mono font-bold text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded border border-cyan-400/20">
           2 WLD

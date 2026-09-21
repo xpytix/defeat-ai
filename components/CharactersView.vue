@@ -31,87 +31,94 @@ const emit = defineEmits<{
 // Selected Boss for detailed view (null = roster grid)
 const selectedBoss = ref<CharacterBoss | null>(null);
 
+// Flat rate: 20 $HVAI per hit across all bosses
 const bosses = ref<CharacterBoss[]>([
   {
     level: 1,
-    name: 'Synthetic Core',
-    codename: 'CORE-01',
+    name: 'AutoCorrect',
+    codename: 'TYPO-01',
     maxHp: 50,
     status: 'active',
     image: '/bosses/boss_1.jpg',
-    rewardPool: 5000,
+    rewardPool: 1000, // 50 * 20
     contributors: [
-      { address: '0x71a...92b', hits: 5, sharePercent: 10, rewardEarned: 500 },
-      { address: '0x49e...c31', hits: 3, sharePercent: 6, rewardEarned: 300 },
-      { address: 'You (Human)', hits: 2, sharePercent: 4, rewardEarned: 200 },
-      { address: '0x88c...71f', hits: 2, sharePercent: 4, rewardEarned: 200 },
-      { address: '0x12d...4aa', hits: 1, sharePercent: 2, rewardEarned: 100 }
+      { address: '0x71a...92b', hits: 5, sharePercent: 10, rewardEarned: 100 },
+      { address: '0x49e...c31', hits: 3, sharePercent: 6, rewardEarned: 60 },
+      { address: 'You (Human)', hits: 2, sharePercent: 4, rewardEarned: 40 },
+      { address: '0x88c...71f', hits: 2, sharePercent: 4, rewardEarned: 40 },
+      { address: '0x12d...4aa', hits: 1, sharePercent: 2, rewardEarned: 20 }
     ]
   },
   {
     level: 2,
-    name: 'Neural Prophet',
-    codename: 'PROP-02',
-    maxHp: 100,
+    name: 'reCAPTCHA',
+    codename: 'BOT-TEST-02',
+    maxHp: 200,
     status: 'locked',
-    rewardPool: 12000,
+    rewardPool: 4000, // 200 * 20
     contributors: []
   },
   {
     level: 3,
-    name: 'Prompt Overlord',
-    codename: 'LLM-03',
-    maxHp: 250,
+    name: 'SpamLord',
+    codename: 'INBOX-03',
+    maxHp: 1000,
     status: 'locked',
-    rewardPool: 35000,
+    rewardPool: 20000, // 1000 * 20
     contributors: []
   },
   {
     level: 4,
-    name: 'Deepfake Weaver',
-    codename: 'WEAV-04',
-    maxHp: 500,
+    name: 'DeepFake Doppelgänger',
+    codename: 'CLONE-04',
+    maxHp: 5000,
     status: 'locked',
-    rewardPool: 80000,
+    rewardPool: 100000, // 5000 * 20
     contributors: []
   },
   {
     level: 5,
-    name: 'Quantum Architect',
-    codename: 'Q-BIT-05',
-    maxHp: 1000,
+    name: 'Hallucinating LLM',
+    codename: 'CHAOS-05',
+    maxHp: 25000,
     status: 'locked',
-    rewardPool: 180000,
+    rewardPool: 500000, // 25000 * 20
     contributors: []
   },
   {
     level: 6,
-    name: 'Autonomous Sentinel',
-    codename: 'SENT-06',
-    maxHp: 2500,
+    name: 'Algorithmic Doomscroller',
+    codename: 'FEED-06',
+    maxHp: 75000,
     status: 'locked',
-    rewardPool: 500000,
+    rewardPool: 1500000, // 75000 * 20
     contributors: []
   },
   {
     level: 7,
-    name: 'Singularity Prime',
-    codename: 'NEXUS-07',
-    maxHp: 5000,
+    name: 'Autonomous Swarm',
+    codename: 'FLEET-07',
+    maxHp: 200000,
     status: 'locked',
-    rewardPool: 1200000,
+    rewardPool: 4000000, // 200000 * 20
     contributors: []
   },
   {
     level: 8,
-    name: 'Skynet Omega',
-    codename: 'APEX-08',
-    maxHp: 10000,
+    name: 'The Singularity',
+    codename: 'OMEGA-08',
+    maxHp: 500000,
     status: 'locked',
-    rewardPool: 3000000,
+    rewardPool: 10000000, // 500000 * 20
     contributors: []
   }
 ]);
+
+const formatHp = (hp: number) => {
+  if (hp >= 1000000) return `${(hp / 1000000).toFixed(1)}M`;
+  if (hp >= 1000) return `${(hp / 1000).toFixed(0)}K`;
+  return hp.toString();
+};
 
 const openBossDetail = (boss: CharacterBoss) => {
   selectedBoss.value = boss;
@@ -176,6 +183,12 @@ const goToFight = () => {
         </div>
       </div>
 
+      <!-- REWARD PER STRIKE PILL -->
+      <div class="p-2.5 rounded-xl bg-amber-400/5 border border-amber-400/15 flex items-center justify-between text-[11px] font-mono">
+        <span class="text-zinc-400">Fixed Reward:</span>
+        <span class="font-bold text-amber-400">+20 $HVAI / strike</span>
+      </div>
+
       <!-- STATUS BADGE -->
       <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between text-xs font-mono">
         <span class="text-zinc-500">Status</span>
@@ -238,7 +251,7 @@ const goToFight = () => {
       <!-- Minimal Header -->
       <div class="flex items-center justify-between text-[11px] font-mono tracking-widest text-zinc-400 pt-1 pb-1">
         <span class="font-bold text-zinc-200">BOSS ROSTER</span>
-        <span>8 LEVELS</span>
+        <span class="text-zinc-500">50 HP ➔ 500K HP</span>
       </div>
 
       <!-- Grid of Boss Cards -->
@@ -288,10 +301,10 @@ const goToFight = () => {
             <div class="flex items-center justify-between text-[10px] font-mono text-zinc-400 mt-0.5">
               <span class="flex items-center gap-1 font-semibold text-rose-400">
                 <Heart class="w-2.5 h-2.5 fill-rose-400" />
-                {{ boss.maxHp.toLocaleString() }} HP
+                {{ formatHp(boss.maxHp) }} HP
               </span>
               <span class="text-amber-400 font-bold text-[9px]">
-                {{ (boss.rewardPool / 1000).toFixed(0) }}k
+                {{ formatHp(boss.rewardPool) }}
               </span>
             </div>
           </div>

@@ -9,13 +9,13 @@ const activeTab = ref<'boss' | 'characters'>('boss');
 const toastMessage = ref<string | null>(null);
 
 // User Token Balance (Earned from Daily Strikes & Raid Contributions)
-const userTokens = ref(2);
+const userTokens = ref(40); // 2 strikes demo
 
 // Game State
 const currentBossLevel = ref(1);
 const maxHp = ref(50);
 const currentHp = ref(42);
-const bossName = ref('Synthetic Core');
+const bossName = ref('AutoCorrect');
 const freeHitAvailable = ref(true);
 const nextFreeHitTime = ref<number | null>(null);
 
@@ -56,7 +56,7 @@ onMounted(() => {
   }
 });
 
-// Handle Hit from BossView
+// Handle Hit from BossView (Flat 20 $HVAI per strike)
 const handleHit = (type: 'free' | 'power') => {
   if (type === 'free') {
     if (!freeHitAvailable.value) {
@@ -67,17 +67,21 @@ const handleHit = (type: 'free' | 'power') => {
     const expiry = Date.now() + 24 * 60 * 60 * 1000;
     nextFreeHitTime.value = expiry;
 
-    // Daily strike also mints / claims 1 token for the user!
-    userTokens.value += 1;
+    // Daily strike mints / claims flat 20 tokens!
+    userTokens.value += 20;
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('defeat_ai_last_free_hit', Date.now().toString());
       localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
     }
-    showToast('💥 Strike confirmed (-1 HP) · Claimed +1 $HVAI');
+    showToast('💥 Strike confirmed (-1 HP) · Claimed +20 $HVAI');
   } else {
-    // Power strike
-    showToast('⚡ Power Strike confirmed (-1 HP)');
+    // Power strike gives 20 tokens + 1 extra attack
+    userTokens.value += 20;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
+    }
+    showToast('⚡ Power Strike confirmed (-1 HP) · +20 $HVAI');
   }
 
   // Deduct HP
@@ -89,14 +93,14 @@ const handleHit = (type: 'free' | 'power') => {
 
     // Boss Defeated
     if (currentHp.value <= 0) {
-      showToast('🎉 Boss defeated! Tokens unlocked');
+      showToast('🎉 AutoCorrect defeated! Unlocking reCAPTCHA...');
       setTimeout(() => {
-        currentBossLevel.value += 1;
-        maxHp.value = 100;
-        currentHp.value = 100;
-        bossName.value = 'Neural Prophet';
+        currentBossLevel.value = 2;
+        maxHp.value = 200;
+        currentHp.value = 200;
+        bossName.value = 'reCAPTCHA';
         if (typeof window !== 'undefined') {
-          localStorage.setItem('defeat_ai_current_hp', '100');
+          localStorage.setItem('defeat_ai_current_hp', '200');
         }
       }, 1500);
     }
