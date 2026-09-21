@@ -23,6 +23,7 @@ interface CharacterBoss {
 
 const props = defineProps<{
   currentLevel: number;
+  isWhiteTheme?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -150,7 +151,10 @@ const goToFight = () => {
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col px-5 pt-3 pb-24 max-w-sm mx-auto w-full select-none overflow-y-auto">
+  <div 
+    class="flex-1 flex flex-col px-5 sm:px-8 pt-3 pb-24 max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-3xl mx-auto w-full select-none overflow-y-auto transition-colors duration-500"
+    :class="isWhiteTheme ? 'text-zinc-950' : 'text-white'"
+  >
     
     <!-- VIEW A: BOSS DETAIL / WIKI, DAMAGE LOG & REWARDS -->
     <div v-if="selectedBoss" class="flex-1 flex flex-col space-y-4">
@@ -159,24 +163,31 @@ const goToFight = () => {
       <div class="flex items-center justify-between">
         <button 
           @click="backToRoster"
-          class="flex items-center gap-1.5 text-zinc-400 hover:text-white text-xs font-mono tracking-wider transition-colors py-1"
+          class="flex items-center gap-1.5 text-xs font-mono tracking-wider transition-colors py-1"
+          :class="isWhiteTheme ? 'text-zinc-600 hover:text-black' : 'text-zinc-400 hover:text-white'"
         >
           <ArrowLeft class="w-4 h-4" />
           <span>ROSTER</span>
         </button>
 
-        <span class="text-[10px] font-mono tracking-widest uppercase text-zinc-500 font-bold">
+        <span 
+          class="text-[10px] font-mono tracking-widest uppercase font-bold"
+          :class="isWhiteTheme ? 'text-zinc-500' : 'text-zinc-400'"
+        >
           LVL {{ String(selectedBoss.level).padStart(2, '0') }}
         </span>
       </div>
 
       <!-- Boss 3D Preview Card -->
-      <div class="relative w-full h-48 rounded-2xl overflow-hidden bg-black border border-white/10 flex items-center justify-center">
+      <div 
+        class="relative w-full h-56 sm:h-64 rounded-2xl overflow-hidden flex items-center justify-center border shadow-lg transition-colors"
+        :class="isWhiteTheme ? 'bg-zinc-950 border-black/10' : 'bg-black border-white/10'"
+      >
         <img 
           v-if="selectedBoss.image" 
           :src="selectedBoss.image" 
           :alt="selectedBoss.name" 
-          class="w-full h-full object-cover object-top opacity-85"
+          class="w-full h-full object-cover object-top opacity-90"
         />
         <div v-else class="text-5xl font-mono text-zinc-800 font-black">
           ?
@@ -184,15 +195,15 @@ const goToFight = () => {
 
         <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent flex flex-col justify-end p-4">
           <div class="flex items-center gap-2">
-            <h3 class="text-base font-extrabold text-white tracking-wide">
+            <h3 class="text-base sm:text-lg font-extrabold text-white tracking-wide">
               {{ selectedBoss.status === 'locked' && selectedBoss.level !== 8 ? 'Classified Threat' : selectedBoss.name }}
             </h3>
             <span v-if="selectedBoss.level === 8" class="text-[9px] font-mono font-black px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-400 border border-amber-400/30">
               FINAL APEX
             </span>
           </div>
-          <div class="flex items-center justify-between text-xs font-mono text-zinc-300 mt-1">
-            <span class="flex items-center gap-1">
+          <div class="flex items-center justify-between text-xs sm:text-sm font-mono text-zinc-300 mt-1">
+            <span class="flex items-center gap-1.5">
               <Heart class="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
               <strong>{{ selectedBoss.maxHp.toLocaleString() }} HP</strong>
             </span>
@@ -205,25 +216,34 @@ const goToFight = () => {
       </div>
 
       <!-- WIKI LORE CARD (3-5 SENTENCES HISTORY) -->
-      <div class="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-1.5">
-        <div class="flex items-center gap-1.5 text-[10px] font-mono uppercase text-zinc-400 font-bold tracking-wider">
-          <BookOpen class="w-3 h-3 text-cyan-400" />
+      <div 
+        class="p-4 rounded-xl border space-y-1.5 transition-colors"
+        :class="isWhiteTheme ? 'bg-black/[0.03] border-black/10' : 'bg-white/[0.03] border-white/5'"
+      >
+        <div class="flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold tracking-wider" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">
+          <BookOpen class="w-3.5 h-3.5 text-cyan-500" />
           <span>INTEL BRIEFING // LORE</span>
         </div>
-        <p class="text-xs text-zinc-300 leading-relaxed font-sans">
+        <p class="text-xs sm:text-sm leading-relaxed font-sans" :class="isWhiteTheme ? 'text-zinc-800' : 'text-zinc-300'">
           {{ selectedBoss.lore }}
         </p>
       </div>
 
       <!-- REWARD PER STRIKE PILL -->
-      <div class="p-2.5 rounded-xl bg-amber-400/5 border border-amber-400/15 flex items-center justify-between text-[11px] font-mono">
-        <span class="text-zinc-400">Fixed Reward:</span>
-        <span class="font-bold text-amber-400">+20 $HVAI / strike</span>
+      <div 
+        class="p-3 rounded-xl border flex items-center justify-between text-xs font-mono transition-colors"
+        :class="isWhiteTheme ? 'bg-amber-500/10 border-amber-500/20 text-zinc-800' : 'bg-amber-400/5 border-amber-400/15 text-amber-400'"
+      >
+        <span :class="isWhiteTheme ? 'text-zinc-600 font-medium' : 'text-zinc-400'">Fixed Reward Rate:</span>
+        <span class="font-black text-amber-500">+20 $HVAI / strike</span>
       </div>
 
       <!-- DAMAGE LEADERBOARD & REWARD DISTRIBUTION -->
       <div class="flex-1 flex flex-col space-y-2">
-        <div class="flex items-center justify-between text-[10px] font-mono tracking-widest text-zinc-500 uppercase px-1">
+        <div 
+          class="flex items-center justify-between text-[10px] font-mono tracking-widest uppercase px-1"
+          :class="isWhiteTheme ? 'text-zinc-500 font-bold' : 'text-zinc-500'"
+        >
           <span>Damage Dealt</span>
           <span>{{ selectedBoss.status === 'defeated' ? 'Earned' : 'Projected Reward' }}</span>
         </div>
@@ -232,21 +252,23 @@ const goToFight = () => {
           <div 
             v-for="c in selectedBoss.contributors" 
             :key="c.address"
-            class="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between text-xs font-mono"
-            :class="c.address.includes('You') ? 'border-cyan-500/40 bg-cyan-500/5' : ''"
+            class="p-2.5 rounded-xl border flex items-center justify-between text-xs font-mono transition-colors"
+            :class="c.address.includes('You') 
+              ? (isWhiteTheme ? 'border-cyan-500 bg-cyan-50' : 'border-cyan-500/40 bg-cyan-500/5') 
+              : (isWhiteTheme ? 'bg-black/[0.03] border-black/10' : 'bg-white/[0.03] border-white/5')"
           >
             <div>
-              <div class="font-bold text-white text-[11px]">{{ c.address }}</div>
-              <div class="text-[10px] text-zinc-400">{{ c.hits }} strikes ({{ c.sharePercent }}%)</div>
+              <div class="font-bold text-[11px]" :class="isWhiteTheme ? 'text-zinc-900' : 'text-white'">{{ c.address }}</div>
+              <div class="text-[10px]" :class="isWhiteTheme ? 'text-zinc-500' : 'text-zinc-400'">{{ c.hits }} strikes ({{ c.sharePercent }}%)</div>
             </div>
             <div class="text-right">
-              <div class="font-bold text-amber-400 text-xs">+{{ c.rewardEarned }}</div>
-              <div class="text-[9px] text-zinc-500 uppercase">$HVAI</div>
+              <div class="font-bold text-amber-500 text-xs">+{{ c.rewardEarned }}</div>
+              <div class="text-[9px] uppercase" :class="isWhiteTheme ? 'text-zinc-400' : 'text-zinc-500'">$HVAI</div>
             </div>
           </div>
         </div>
 
-        <div v-else class="text-center py-6 text-zinc-600 text-xs font-mono">
+        <div v-else class="text-center py-6 text-xs font-mono" :class="isWhiteTheme ? 'text-zinc-500' : 'text-zinc-600'">
           No strikes recorded for this level yet.
         </div>
       </div>
@@ -254,10 +276,18 @@ const goToFight = () => {
       <!-- Action Button (Available for testing any boss) -->
       <button 
         @click="goToFight"
-        class="w-full py-3 rounded-xl bg-white text-black font-extrabold text-xs tracking-widest uppercase hover:bg-zinc-200 transition-all mt-auto flex items-center justify-center gap-2"
+        class="w-full py-3.5 rounded-xl font-black text-xs tracking-widest uppercase transition-all mt-auto flex items-center justify-center gap-2 shadow-lg"
+        :class="isWhiteTheme 
+          ? 'bg-black text-white hover:bg-zinc-800' 
+          : 'bg-white text-black hover:bg-zinc-200'"
       >
         <span>ENTER ARENA</span>
-        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/10 font-bold">LVL {{ String(selectedBoss.level).padStart(2, '0') }}</span>
+        <span 
+          class="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold"
+          :class="isWhiteTheme ? 'bg-white/20 text-white' : 'bg-black/10 text-black'"
+        >
+          LVL {{ String(selectedBoss.level).padStart(2, '0') }}
+        </span>
       </button>
 
     </div>
@@ -266,23 +296,26 @@ const goToFight = () => {
     <div v-else class="flex-1 flex flex-col space-y-3">
       
       <!-- Minimal Header -->
-      <div class="flex items-center justify-between text-[11px] font-mono tracking-widest text-zinc-400 pt-1 pb-1">
-        <span class="font-bold text-zinc-200">BOSS ROSTER</span>
-        <span class="text-zinc-500">50 HP ➔ 500K (AGI)</span>
+      <div 
+        class="flex items-center justify-between text-[11px] font-mono tracking-widest pt-1 pb-1 transition-colors"
+        :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'"
+      >
+        <span class="font-black" :class="isWhiteTheme ? 'text-zinc-950' : 'text-zinc-200'">BOSS ROSTER</span>
+        <span :class="isWhiteTheme ? 'text-zinc-500' : 'text-zinc-500'">50 HP ➔ 500K (AGI)</span>
       </div>
 
-      <!-- Grid of Boss Cards -->
-      <div class="grid grid-cols-2 gap-3">
+      <!-- Grid of Boss Cards (Responsive for iPhone 17 Pro Max & Tablets) -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
         <div 
           v-for="boss in bosses" 
           :key="boss.level"
           @click="openBossDetail(boss)"
           class="group relative rounded-2xl overflow-hidden border transition-all duration-200 cursor-pointer aspect-square flex flex-col justify-between p-3"
           :class="boss.status === 'active' 
-            ? 'bg-black border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/30' 
+            ? (isWhiteTheme ? 'bg-white border-cyan-500 shadow-md ring-1 ring-cyan-500/40' : 'bg-black border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/30') 
             : boss.status === 'defeated' 
-              ? 'bg-black border-emerald-500/30' 
-              : 'bg-[#0A0A0F] border-white/5 opacity-60 hover:opacity-100'"
+              ? (isWhiteTheme ? 'bg-emerald-50 border-emerald-500/30' : 'bg-black border-emerald-500/30') 
+              : (isWhiteTheme ? 'bg-zinc-100 border-black/10 opacity-70 hover:opacity-100' : 'bg-[#0A0A0F] border-white/5 opacity-60 hover:opacity-100')"
         >
           <!-- 3D Boss Image with mystery styling for locked bosses -->
           <img 
@@ -290,9 +323,9 @@ const goToFight = () => {
             :src="boss.image" 
             class="absolute inset-0 w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
             :class="boss.status === 'active' 
-              ? 'opacity-85' 
+              ? 'opacity-90' 
               : boss.level === 8 
-                ? 'opacity-40 brightness-75 sepia-[0.3]' 
+                ? 'opacity-45 brightness-75 sepia-[0.3]' 
                 : 'opacity-30 grayscale brightness-75'"
           />
 
@@ -313,13 +346,13 @@ const goToFight = () => {
               :class="boss.status === 'active' 
                 ? 'bg-cyan-500 text-black font-extrabold' 
                 : boss.level === 8 
-                  ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' 
-                  : 'bg-black/70 text-zinc-400 border border-white/10'"
+                  ? 'bg-amber-400/20 text-amber-400 border border-amber-400/30' 
+                  : (isWhiteTheme ? 'bg-white/90 text-zinc-800 border border-black/10 shadow-sm' : 'bg-black/70 text-zinc-400 border border-white/10')"
             >
               LVL {{ String(boss.level).padStart(2, '0') }}
             </span>
-            <Lock v-if="boss.status === 'locked'" class="w-3.5 h-3.5 text-zinc-600" />
-            <CheckCircle2 v-else-if="boss.status === 'defeated'" class="w-3.5 h-3.5 text-emerald-400" />
+            <Lock v-if="boss.status === 'locked'" class="w-3.5 h-3.5" :class="isWhiteTheme ? 'text-zinc-500' : 'text-zinc-500'" />
+            <CheckCircle2 v-else-if="boss.status === 'defeated'" class="w-3.5 h-3.5 text-emerald-500" />
           </div>
 
           <!-- Bottom Info with Clear HP Count -->
@@ -327,7 +360,7 @@ const goToFight = () => {
             <div class="text-[11px] font-bold text-white truncate">
               {{ boss.status === 'locked' && boss.level !== 8 ? 'Classified' : boss.name }}
             </div>
-            <div class="flex items-center justify-between text-[10px] font-mono text-zinc-400 mt-0.5">
+            <div class="flex items-center justify-between text-[10px] font-mono text-zinc-300 mt-0.5">
               <span class="flex items-center gap-1 font-semibold text-rose-400">
                 <Heart class="w-2.5 h-2.5 fill-rose-400" />
                 {{ formatHp(boss.maxHp) }} HP

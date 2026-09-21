@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import BossView from '~/components/BossView.vue';
 import CharactersView from '~/components/CharactersView.vue';
 import BottomNav from '~/components/BottomNav.vue';
@@ -68,6 +68,8 @@ const BOSS_LIST = [
   { level: 8, name: 'AGI', maxHp: 500000 },
 ];
 
+const isWhiteTheme = computed(() => [3, 5, 8].includes(currentBossLevel.value));
+
 const selectBoss = (lvl: number) => {
   const target = BOSS_LIST.find(b => b.level === lvl) || BOSS_LIST[0];
   currentBossLevel.value = target.level;
@@ -131,14 +133,27 @@ const handleHit = (type: 'free' | 'power') => {
 </script>
 
 <template>
-  <div class="h-[100dvh] max-h-[100dvh] w-screen overflow-hidden flex flex-col bg-black text-white font-sans select-none relative">
+  <div 
+    class="h-[100dvh] max-h-[100dvh] w-screen overflow-hidden flex flex-col font-sans select-none relative transition-colors duration-500"
+    :class="isWhiteTheme ? 'bg-white text-zinc-950' : 'bg-black text-white'"
+  >
     
     <!-- Top Ambient Glow -->
-    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-80 h-32 bg-cyan-500/10 rounded-full blur-[90px] pointer-events-none -z-10" />
+    <div 
+      class="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-36 rounded-full blur-[110px] pointer-events-none -z-10 transition-colors duration-700"
+      :class="isWhiteTheme 
+        ? (currentBossLevel === 8 ? 'bg-amber-400/25' : currentBossLevel === 5 ? 'bg-violet-400/20' : 'bg-fuchsia-400/20') 
+        : 'bg-cyan-500/10'" 
+    />
 
     <!-- Sleek Minimal Floating Toast -->
     <div v-if="toastMessage" class="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-      <div class="px-4 py-2 bg-zinc-900/95 border border-white/10 rounded-full shadow-2xl backdrop-blur-xl text-center text-xs font-mono font-bold tracking-wider text-zinc-200">
+      <div 
+        class="px-4 py-2 rounded-full shadow-2xl backdrop-blur-xl text-center text-xs font-mono font-bold tracking-wider transition-colors"
+        :class="isWhiteTheme 
+          ? 'bg-black/90 border border-black/10 text-white' 
+          : 'bg-zinc-900/95 border border-white/10 text-zinc-200'"
+      >
         {{ toastMessage }}
       </div>
     </div>
@@ -157,12 +172,14 @@ const handleHit = (type: 'free' | 'power') => {
         :free-hit-available="freeHitAvailable"
         :next-free-hit-time="nextFreeHitTime"
         :user-tokens="userTokens"
+        :is-white-theme="isWhiteTheme"
         @hit="handleHit"
         @select-level="selectBoss"
       />
       <CharactersView 
         v-else-if="activeTab === 'characters'" 
         :current-level="currentBossLevel"
+        :is-white-theme="isWhiteTheme"
         @fight="handleFight"
       />
     </main>
@@ -170,6 +187,7 @@ const handleHit = (type: 'free' | 'power') => {
     <!-- Minimalist Bottom Navigation -->
     <BottomNav 
       :active-tab="activeTab" 
+      :is-white-theme="isWhiteTheme"
       @update:active-tab="activeTab = $event" 
     />
 

@@ -29,12 +29,46 @@ const props = defineProps<{
   freeHitAvailable: boolean;
   nextFreeHitTime: number | null;
   userTokens: number;
+  isWhiteTheme?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'hit', type: 'free' | 'power'): void;
   (e: 'selectLevel', level: number): void;
 }>();
+
+// Volumetric Fog Mechanics for Boss 2, 4, 6, 7
+const hasFog = computed(() => [2, 4, 6, 7].includes(props.level));
+
+const fogStyles = computed(() => {
+  switch (props.level) {
+    case 2: // reCAPTCHA - optical verification haze
+      return {
+        bgBack: 'from-amber-400/20 via-emerald-400/15 to-transparent',
+        bgFront: 'from-yellow-400/35 via-emerald-400/25 to-transparent'
+      };
+    case 4: // DeepFake Doppelgänger - shifting violet-cyan illusion mist
+      return {
+        bgBack: 'from-indigo-600/25 via-purple-500/20 to-transparent',
+        bgFront: 'from-purple-500/40 via-cyan-400/25 to-transparent'
+      };
+    case 6: // Algorithmic Blackout - volcanic red ash and blackout smog
+      return {
+        bgBack: 'from-red-700/35 via-rose-950/30 to-transparent',
+        bgFront: 'from-red-600/45 via-rose-900/35 to-transparent'
+      };
+    case 7: // Synthetic Supercluster - subzero cryo-nitrogen freezing vapor
+      return {
+        bgBack: 'from-sky-400/25 via-cyan-400/20 to-transparent',
+        bgFront: 'from-cyan-300/40 via-sky-300/30 to-transparent'
+      };
+    default:
+      return {
+        bgBack: 'from-cyan-500/20 to-transparent',
+        bgFront: 'from-cyan-500/30 to-transparent'
+      };
+  }
+});
 
 // 3D Parallax Tilt State
 const tiltX = ref(0);
@@ -57,6 +91,16 @@ const backgroundParticles = ref<Particle[]>([]);
 
 // Boss-specific color palettes
 const getBossColors = (lvl: number) => {
+  if (props.isWhiteTheme) {
+    switch (lvl) {
+      case 3: // SpamLord on white background
+        return ['bg-fuchsia-600 text-fuchsia-600', 'bg-purple-700 text-purple-700', 'bg-pink-600 text-pink-600'];
+      case 5: // Hivemind on white background
+        return ['bg-violet-700 text-violet-700', 'bg-blue-700 text-blue-700', 'bg-indigo-700 text-indigo-700'];
+      case 8: // AGI on white background
+        return ['bg-amber-600 text-amber-600', 'bg-yellow-600 text-yellow-600', 'bg-amber-500 text-amber-500'];
+    }
+  }
   switch (lvl) {
     case 1: // AutoCorrect
       return ['bg-cyan-400 text-cyan-300', 'bg-amber-300 text-amber-300', 'bg-cyan-200 text-cyan-200'];
@@ -109,7 +153,7 @@ const setupParticles = () => {
   }));
 };
 
-watch(() => props.level, setupParticles);
+watch([() => props.level, () => props.isWhiteTheme], setupParticles);
 
 // HP Percentage
 const hpPercent = computed(() => {
@@ -202,7 +246,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
 <template>
   <div 
-    class="flex-1 flex flex-col justify-between items-center px-4 pt-2 pb-24 max-w-sm sm:max-w-md mx-auto w-full select-none"
+    class="flex-1 flex flex-col justify-between items-center px-4 sm:px-8 pt-1 pb-24 max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-3xl mx-auto w-full select-none transition-colors duration-500"
     @mousemove="handlePointerMove"
     @touchmove="handlePointerMove"
     @mouseleave="resetTilt"
@@ -210,10 +254,21 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
   >
     
     <!-- TEST CONTROLS (Easily switch between all 8 bosses for testing) -->
-    <div class="w-full flex items-center justify-between px-2.5 py-1 mb-1 rounded-lg bg-amber-400/10 border border-amber-400/25 text-xs font-mono">
-      <div class="flex items-center gap-1.5 text-[10px] text-amber-300 font-bold uppercase tracking-wider">
-        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
-        <span>TEST:</span>
+    <div 
+      class="w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-xl text-xs font-mono transition-colors duration-300"
+      :class="isWhiteTheme 
+        ? 'bg-black/[0.04] border border-black/10 text-zinc-900 shadow-sm' 
+        : 'bg-amber-400/10 border border-amber-400/25 text-amber-300'"
+    >
+      <div 
+        class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider"
+        :class="isWhiteTheme ? 'text-zinc-800' : 'text-amber-300'"
+      >
+        <span 
+          class="w-1.5 h-1.5 rounded-full animate-ping"
+          :class="isWhiteTheme ? 'bg-zinc-800' : 'bg-amber-400'"
+        ></span>
+        <span>TEST BOSS:</span>
       </div>
       
       <div class="flex items-center gap-1">
@@ -221,10 +276,14 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           v-for="i in 8"
           :key="i"
           @click="emit('selectLevel', i)"
-          class="w-6 h-5 rounded flex items-center justify-center text-[10px] font-bold transition-all"
+          class="w-6 h-5.5 sm:w-7 sm:h-6 rounded-md flex items-center justify-center text-[11px] font-bold transition-all"
           :class="level === i 
-            ? (i === 8 ? 'bg-amber-400 text-black font-black shadow-[0_0_8px_rgba(251,191,36,0.5)]' : 'bg-white text-black font-black shadow-[0_0_8px_rgba(255,255,255,0.4)]') 
-            : 'text-zinc-400 hover:text-white bg-black/40 hover:bg-white/10'"
+            ? (i === 8 
+                ? (isWhiteTheme ? 'bg-amber-500 text-black font-black shadow-md ring-1 ring-amber-600' : 'bg-amber-400 text-black font-black shadow-[0_0_8px_rgba(251,191,36,0.6)]') 
+                : (isWhiteTheme ? 'bg-black text-white font-black shadow-md' : 'bg-white text-black font-black shadow-[0_0_8px_rgba(255,255,255,0.4)]'))
+            : (isWhiteTheme 
+                ? 'text-zinc-600 hover:text-black bg-black/5 hover:bg-black/10' 
+                : 'text-zinc-400 hover:text-white bg-black/40 hover:bg-white/10')"
           :title="`Switch to Boss ${i}`"
         >
           {{ i }}
@@ -233,84 +292,113 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
     </div>
 
     <!-- TOP BALANCED HEADER & TELEMETRY -->
-    <div class="w-full flex flex-col space-y-1 pt-1 px-1">
+    <div class="w-full flex flex-col space-y-1.5 pt-1 px-1">
       
       <!-- Upper Status Row -->
       <div class="flex items-center justify-between">
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-2">
           <button 
             @click="emit('selectLevel', Math.max(1, level - 1))"
             :disabled="level <= 1"
-            class="w-5 h-5 rounded flex items-center justify-center text-zinc-400 hover:text-white disabled:opacity-20 disabled:hover:text-zinc-400 bg-white/5 border border-white/10 text-xs transition-colors"
+            class="w-6 h-6 rounded flex items-center justify-center disabled:opacity-20 text-xs transition-colors"
+            :class="isWhiteTheme 
+              ? 'text-zinc-700 hover:text-black bg-black/5 border border-black/10 disabled:hover:text-zinc-700' 
+              : 'text-zinc-400 hover:text-white bg-white/5 border border-white/10 disabled:hover:text-zinc-400'"
             title="Previous Boss"
           >
             ‹
           </button>
           <span 
-            class="text-xs font-mono font-black px-2 py-0.5 rounded border"
+            class="text-xs font-mono font-black px-2.5 py-0.5 rounded border tracking-wider"
             :class="level === 8 
-              ? 'text-amber-300 bg-amber-400/20 border-amber-400/40' 
-              : 'text-rose-500 bg-rose-500/10 border-rose-500/20'"
+              ? (isWhiteTheme ? 'text-amber-900 bg-amber-200 border-amber-400 shadow-sm' : 'text-amber-300 bg-amber-400/20 border-amber-400/40') 
+              : (isWhiteTheme ? 'text-zinc-950 bg-black/5 border-black/15' : 'text-rose-500 bg-rose-500/10 border-rose-500/20')"
           >
             LVL {{ String(level).padStart(2, '0') }}
           </span>
           <button 
             @click="emit('selectLevel', Math.min(8, level + 1))"
             :disabled="level >= 8"
-            class="w-5 h-5 rounded flex items-center justify-center text-zinc-400 hover:text-white disabled:opacity-20 disabled:hover:text-zinc-400 bg-white/5 border border-white/10 text-xs transition-colors"
+            class="w-6 h-6 rounded flex items-center justify-center disabled:opacity-20 text-xs transition-colors"
+            :class="isWhiteTheme 
+              ? 'text-zinc-700 hover:text-black bg-black/5 border border-black/10 disabled:hover:text-zinc-700' 
+              : 'text-zinc-400 hover:text-white bg-white/5 border border-white/10 disabled:hover:text-zinc-400'"
             title="Next Boss"
           >
             ›
           </button>
-          <span class="text-xs font-mono tracking-widest text-zinc-300 font-bold uppercase truncate max-w-[130px]">
+          <span 
+            class="text-xs sm:text-sm font-mono tracking-widest font-black uppercase truncate max-w-[150px] sm:max-w-xs"
+            :class="isWhiteTheme ? 'text-zinc-950' : 'text-zinc-200'"
+          >
             {{ bossName }}
           </span>
         </div>
 
         <!-- Token Balance -->
-        <div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.05] border border-white/10 text-amber-400 font-bold shadow-sm">
-          <Coins class="w-3.5 h-3.5 text-amber-400" />
-          <span class="text-xs font-mono">{{ userTokens.toLocaleString() }}</span>
-          <span class="text-[9px] text-zinc-400 font-mono font-normal">$HVAI</span>
+        <div 
+          class="flex items-center gap-1.5 px-3.5 py-1 rounded-full text-amber-500 font-bold shadow-sm transition-colors"
+          :class="isWhiteTheme ? 'bg-black/[0.04] border border-black/10' : 'bg-white/[0.05] border border-white/10'"
+        >
+          <Coins class="w-3.5 h-3.5 text-amber-500" />
+          <span class="text-xs font-mono font-black">{{ userTokens.toLocaleString() }}</span>
+          <span class="text-[9px] font-mono font-normal" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">$HVAI</span>
         </div>
       </div>
 
       <!-- Lower Sub-Bar with Spectator Icons -->
-      <div class="flex items-center justify-between text-[11px] font-mono text-zinc-500 pt-1 border-b border-white/[0.06] pb-2">
-        <span class="text-[10px] uppercase tracking-wider flex items-center gap-1"
-          :class="level === 8 ? 'text-amber-400 font-bold' : 'text-zinc-500'"
+      <div 
+        class="flex items-center justify-between text-[11px] font-mono pt-1 pb-2 border-b transition-colors"
+        :class="isWhiteTheme ? 'border-black/[0.08] text-zinc-600' : 'border-white/[0.06] text-zinc-500'"
+      >
+        <span class="text-[10px] uppercase tracking-wider flex items-center gap-1.5 font-semibold"
+          :class="level === 8 
+            ? (isWhiteTheme ? 'text-amber-700 font-bold' : 'text-amber-400 font-bold') 
+            : (isWhiteTheme ? 'text-zinc-600' : 'text-zinc-500')"
         >
-          <ShieldAlert class="w-3 h-3" :class="level === 8 ? 'text-amber-400' : 'text-cyan-400'" />
+          <ShieldAlert class="w-3.5 h-3.5" :class="level === 8 ? (isWhiteTheme ? 'text-amber-700' : 'text-amber-400') : (isWhiteTheme ? 'text-cyan-700' : 'text-cyan-400')" />
           <span>{{ level === 8 ? 'APEX SINGULARITY THREAT' : 'CLASS-1 ROGUE ENTITY' }}</span>
         </span>
 
         <div class="flex items-center gap-4 text-xs">
-          <div class="flex items-center gap-1.5 text-zinc-400">
-            <Eye class="w-3.5 h-3.5 text-zinc-500" />
-            <span>{{ spectatorCount }}</span>
+          <div class="flex items-center gap-1.5" :class="isWhiteTheme ? 'text-zinc-700' : 'text-zinc-400'">
+            <Eye class="w-3.5 h-3.5" :class="isWhiteTheme ? 'text-zinc-500' : 'text-zinc-500'" />
+            <span class="font-medium">{{ spectatorCount }}</span>
           </div>
-          <div class="w-1 h-1 rounded-full bg-zinc-700"></div>
-          <div class="flex items-center gap-1.5 text-zinc-300">
+          <div class="w-1 h-1 rounded-full" :class="isWhiteTheme ? 'bg-zinc-300' : 'bg-zinc-700'"></div>
+          <div class="flex items-center gap-1.5" :class="isWhiteTheme ? 'text-zinc-900 font-bold' : 'text-zinc-300 font-semibold'">
             <Swords class="w-3.5 h-3.5 text-rose-500" />
-            <span class="font-semibold">{{ activeAttackerCount }}</span>
+            <span>{{ activeAttackerCount }}</span>
           </div>
         </div>
       </div>
 
     </div>
 
-    <!-- 3D CENTERPIECE ARENA: MASSIVE BOSS WITH REALISTIC VOLUMETRIC EMBERS & SMOKE -->
-    <div class="relative flex-1 flex flex-col items-center justify-center my-auto w-full overflow-visible py-2">
+    <!-- 3D CENTERPIECE ARENA: MASSIVE BOSS (OPTIMIZED FOR IPHONE 17 PRO MAX & TABLETS) -->
+    <div class="relative flex-1 flex flex-col items-center justify-center my-auto w-full overflow-visible py-1 sm:py-3">
       
       <!-- LAYER 1: Ambient Reactor Glow -->
       <div 
-        class="absolute w-84 h-84 rounded-full blur-[120px] pointer-events-none -z-10 transition-colors duration-700"
-        :class="level === 8 
-          ? 'bg-amber-400/20' 
-          : hpPercent > 30 ? 'bg-cyan-500/15' : 'bg-red-500/20'"
+        class="absolute w-96 sm:w-[500px] h-96 sm:h-[500px] rounded-full blur-[130px] pointer-events-none -z-10 transition-colors duration-700"
+        :class="isWhiteTheme 
+          ? (level === 8 ? 'bg-amber-400/35' : level === 5 ? 'bg-violet-400/30' : 'bg-fuchsia-400/25') 
+          : (level === 8 ? 'bg-amber-400/20' : hpPercent > 30 ? 'bg-cyan-500/15' : 'bg-red-500/20')"
       />
 
-      <!-- LAYER 2: BACKGROUND CYBER EMBERS (Behind Boss) -->
+      <!-- LAYER 2A: VOLUMETRIC FOG (BEHIND BOSS FOR BOSS 2, 4, 6, 7) -->
+      <div v-if="hasFog" class="absolute inset-0 pointer-events-none overflow-hidden -z-4 flex items-end justify-center">
+        <div 
+          class="absolute bottom-6 -left-1/4 w-[150%] h-44 sm:h-64 rounded-[100%] blur-3xl opacity-75 animate-fog-1 bg-gradient-to-t"
+          :class="fogStyles.bgBack"
+        />
+        <div 
+          class="absolute bottom-2 -right-1/4 w-[140%] h-40 sm:h-56 rounded-[100%] blur-3xl opacity-60 animate-fog-2 bg-gradient-to-t"
+          :class="fogStyles.bgBack"
+        />
+      </div>
+
+      <!-- LAYER 2B: BACKGROUND CYBER EMBERS (Behind Boss) -->
       <div class="absolute inset-0 pointer-events-none overflow-hidden -z-5">
         <div 
           v-for="p in backgroundParticles" 
@@ -331,40 +419,60 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
         />
       </div>
 
-      <!-- LAYER 3: THE 3D BOSS CHARACTER -->
+      <!-- LAYER 3: THE 3D BOSS CHARACTER (EXPANDED RESPONISVE CONTAINER) -->
       <div 
         @click="freeHitAvailable ? triggerHit('free', $event) : triggerHit('power', $event)"
-        class="relative w-full max-w-[340px] sm:max-w-[380px] h-[350px] sm:h-[400px] cursor-pointer flex items-center justify-center transition-transform duration-100 ease-out active:scale-95"
+        class="relative w-full max-w-[440px] sm:max-w-[540px] md:max-w-[640px] lg:max-w-[720px] h-[50dvh] min-h-[380px] max-h-[580px] sm:max-h-[660px] md:max-h-[740px] cursor-pointer flex items-center justify-center transition-transform duration-100 ease-out active:scale-95"
         :class="{ 'animate-shake': isShaking }"
         :style="{
           transform: `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,
         }"
       >
-        <!-- The Boss Image -->
-        <div class="relative w-full h-full flex items-center justify-center overflow-visible [mask-image:radial-gradient(circle_at_center,black_80%,transparent_100%)]">
+        <!-- The Boss Image with Frameless Radial Fade -->
+        <div 
+          class="relative w-full h-full flex items-center justify-center overflow-visible"
+          :class="isWhiteTheme 
+            ? '[mask-image:radial-gradient(circle_at_center,black_75%,transparent_98%)]' 
+            : '[mask-image:radial-gradient(circle_at_center,black_80%,transparent_100%)]'"
+        >
           <img 
             :src="bossImage" 
             :alt="bossName" 
-            class="w-full h-full object-contain select-none pointer-events-none transition-transform duration-200"
-            :class="{ 'brightness-125 filter contrast-125 scale-105': isShaking }"
+            class="w-full h-full object-contain select-none pointer-events-none transition-transform duration-200 scale-110 sm:scale-120 md:scale-125"
+            :class="{ 'brightness-125 filter contrast-125 scale-115': isShaking }"
           />
 
           <!-- Red Hit Flash Overlay -->
           <div 
             v-if="isShaking"
-            class="absolute inset-0 bg-rose-600/25 pointer-events-none transition-opacity rounded-full blur-xl"
+            class="absolute inset-0 bg-rose-600/30 pointer-events-none transition-opacity rounded-full blur-2xl"
           />
         </div>
 
-        <!-- LAYER 4: FOREGROUND EMBERS & CYBER SPARKS (DIRECTLY OVERLAPPING BOSS CHASSIS) -->
+        <!-- LAYER 4A: FOREGROUND VOLUMETRIC FOG (OVERLAPPING BOSS CHASSIS FOR BOSS 2, 4, 6, 7) -->
+        <div v-if="hasFog" class="absolute inset-x-0 bottom-0 h-36 sm:h-52 pointer-events-none overflow-hidden z-25 flex items-end justify-center">
+          <div 
+            class="w-full h-28 sm:h-40 rounded-t-[100%] blur-2xl opacity-70 animate-fog-1 bg-gradient-to-t"
+            :class="fogStyles.bgFront"
+          />
+          <div 
+            class="absolute bottom-0 w-4/5 h-24 sm:h-36 rounded-t-[100%] blur-xl opacity-80 animate-fog-2 bg-gradient-to-t"
+            :class="fogStyles.bgFront"
+          />
+        </div>
+
+        <!-- LAYER 4B: FOREGROUND EMBERS & CYBER SPARKS (DIRECTLY OVERLAPPING BOSS CHASSIS) -->
         <div class="absolute inset-0 pointer-events-none overflow-hidden z-20">
           
-          <!-- Soft Drifting Cyber Smoke Core Wisp -->
+          <!-- Soft Drifting Cyber Smoke Core Wisp (when no heavy fog) -->
           <div 
-            class="absolute bottom-16 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full blur-2xl animate-smoke-pulse pointer-events-none"
-            :class="level === 8 
-              ? 'bg-gradient-to-t from-amber-400/15 via-white/10 to-transparent' 
-              : 'bg-gradient-to-t from-cyan-500/10 via-amber-400/5 to-transparent'"
+            v-if="!hasFog"
+            class="absolute bottom-16 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full blur-2xl animate-smoke-pulse pointer-events-none"
+            :class="isWhiteTheme 
+              ? 'bg-gradient-to-t from-amber-500/15 via-black/5 to-transparent' 
+              : (level === 8 
+                  ? 'bg-gradient-to-t from-amber-400/20 via-white/10 to-transparent' 
+                  : 'bg-gradient-to-t from-cyan-500/10 via-amber-400/5 to-transparent')"
           />
 
           <!-- Overlapping Glowing Sparks and Digital Glints -->
@@ -381,7 +489,7 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
               animationDuration: p.duration,
               animationDelay: p.delay,
               filter: `blur(${p.blur})`,
-              boxShadow: '0 0 10px currentColor',
+              boxShadow: isWhiteTheme ? '0 0 6px currentColor' : '0 0 10px currentColor',
               '--drift-x': p.driftX
             }"
           />
@@ -393,32 +501,43 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
       <div 
         v-for="d in floatingDamages" 
         :key="d.id"
-        class="fixed z-50 pointer-events-none font-mono font-black text-2xl animate-float-damage"
-        :class="d.value.includes('CRIT') ? 'text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.9)]' : 'text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.9)]'"
+        class="fixed z-50 pointer-events-none font-mono font-black text-2xl sm:text-3xl animate-float-damage"
+        :class="d.value.includes('CRIT') ? 'text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.9)]' : (isWhiteTheme ? 'text-cyan-600 drop-shadow-[0_0_10px_rgba(8,145,178,0.6)]' : 'text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.9)]')"
         :style="{ left: `${d.x}px`, top: `${d.y}px` }"
       >
         {{ d.value }}
       </div>
 
       <!-- PROMINENT HP DISPLAY DIRECTLY UNDER BOSS -->
-      <div class="w-full max-w-sm mt-1 z-30 px-2">
+      <div class="w-full max-w-[420px] sm:max-w-[500px] md:max-w-[580px] mt-1 z-30 px-2">
         <!-- Direct HP Numbers & Percentage -->
         <div class="flex items-center justify-between font-mono mb-2 px-1">
-          <div class="flex items-center gap-1.5 text-white font-extrabold text-sm tracking-wider">
+          <div 
+            class="flex items-center gap-1.5 font-black text-sm sm:text-base tracking-wider"
+            :class="isWhiteTheme ? 'text-zinc-950' : 'text-white'"
+          >
             <Heart class="w-4 h-4 text-rose-500 fill-rose-500" />
             <span>{{ currentHp.toLocaleString() }}</span>
-            <span class="text-zinc-600 font-normal">/</span>
-            <span class="text-zinc-400 font-normal">{{ maxHp.toLocaleString() }} HP</span>
+            <span :class="isWhiteTheme ? 'text-zinc-400' : 'text-zinc-600'">/</span>
+            <span class="font-normal" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">{{ maxHp.toLocaleString() }} HP</span>
           </div>
-          <span class="text-xs font-mono font-bold text-zinc-400">{{ hpPercent }}%</span>
+          <span 
+            class="text-xs sm:text-sm font-mono font-black"
+            :class="isWhiteTheme ? 'text-zinc-700' : 'text-zinc-400'"
+          >
+            {{ hpPercent }}%
+          </span>
         </div>
 
         <!-- Sleek HP Progress Bar with Gradient -->
-        <div class="w-full h-2.5 bg-zinc-900/90 rounded-full overflow-hidden p-0.5 border border-white/10 relative shadow-inner">
+        <div 
+          class="w-full h-3 rounded-full overflow-hidden p-0.5 relative shadow-inner transition-colors"
+          :class="isWhiteTheme ? 'bg-zinc-200 border border-black/10' : 'bg-zinc-900/90 border border-white/10'"
+        >
           <div 
             class="h-full rounded-full transition-all duration-300"
             :class="level === 8 
-              ? 'bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500' 
+              ? 'bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 shadow-sm' 
               : hpPercent > 30 
                 ? 'bg-gradient-to-r from-cyan-500 via-amber-400 to-rose-500' 
                 : 'bg-red-500 animate-pulse'"
@@ -429,14 +548,17 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
     </div>
 
-    <!-- WIDER ACTION BUTTONS (RICH UX / UI) -->
-    <div class="w-full max-w-sm space-y-2.5 mt-auto px-1 z-30">
+    <!-- WIDER ACTION BUTTONS (RICH RESPONSIVE UX / UI) -->
+    <div class="w-full max-w-[420px] sm:max-w-[500px] md:max-w-[580px] space-y-2.5 mt-auto px-1 z-30">
       
       <!-- FREE DAILY STRIKE (ATTACK + CLAIM 20 TOKENS) -->
       <button 
         v-if="freeHitAvailable"
         @click="triggerHit('free', $event)"
-        class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-white via-zinc-100 to-zinc-200 text-black font-black text-sm tracking-wider uppercase active:scale-[0.98] transition-all shadow-[0_0_25px_rgba(255,255,255,0.2)] flex items-center justify-center gap-2 border border-white"
+        class="w-full py-4 px-6 rounded-2xl font-black text-sm tracking-wider uppercase active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+        :class="isWhiteTheme 
+          ? 'bg-black text-white hover:bg-zinc-800 shadow-[0_4px_25px_rgba(0,0,0,0.25)] border border-black' 
+          : 'bg-gradient-to-r from-white via-zinc-100 to-zinc-200 text-black hover:bg-white shadow-[0_0_25px_rgba(255,255,255,0.2)] border border-white'"
       >
         <span>💥 STRIKE & CLAIM (+20 $HVAI)</span>
       </button>
@@ -444,22 +566,43 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
       <!-- COUNTDOWN TIMER IF ALREADY CLAIMED TODAY -->
       <div 
         v-else 
-        class="w-full py-3.5 px-5 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between text-zinc-400 text-xs font-mono shadow-sm"
+        class="w-full py-3.5 px-5 rounded-2xl flex items-center justify-between text-xs font-mono shadow-sm transition-colors"
+        :class="isWhiteTheme 
+          ? 'bg-black/5 border border-black/10 text-zinc-700' 
+          : 'bg-white/[0.04] border border-white/10 text-zinc-400'"
       >
-        <span class="text-[11px] uppercase tracking-wider text-zinc-500 font-semibold">Daily Strike Claimed</span>
-        <span class="font-bold text-zinc-200 text-sm">⏳ {{ countdownText }}</span>
+        <span 
+          class="text-[11px] uppercase tracking-wider font-semibold"
+          :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-500'"
+        >
+          Daily Strike Claimed
+        </span>
+        <span 
+          class="font-black text-sm"
+          :class="isWhiteTheme ? 'text-zinc-950' : 'text-zinc-200'"
+        >
+          ⏳ {{ countdownText }}
+        </span>
       </div>
 
       <!-- POWER STRIKE BUTTON (2 WLD = ATTACK + 20 TOKENS) -->
       <button 
         @click="triggerHit('power', $event)"
-        class="w-full py-3 px-5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] border border-cyan-500/30 hover:border-cyan-500/60 active:scale-[0.98] transition-all flex items-center justify-between text-zinc-300 hover:text-white shadow-[0_0_15px_rgba(6,182,212,0.08)]"
+        class="w-full py-3.5 px-5 rounded-2xl active:scale-[0.98] transition-all flex items-center justify-between shadow-sm"
+        :class="isWhiteTheme 
+          ? 'bg-black/[0.03] hover:bg-black/[0.06] border-2 border-cyan-600 text-zinc-950 hover:border-cyan-700' 
+          : 'bg-white/[0.03] hover:bg-white/[0.08] border border-cyan-500/30 hover:border-cyan-500/60 text-zinc-300 hover:text-white shadow-[0_0_15px_rgba(6,182,212,0.08)]'"
       >
-        <div class="flex items-center gap-2">
-          <Zap class="w-4 h-4 text-cyan-400 fill-cyan-400" />
-          <span class="text-xs font-mono tracking-wider font-bold uppercase">Power Strike (+20 $HVAI)</span>
+        <div class="flex items-center gap-2.5">
+          <Zap class="w-4 h-4 text-cyan-500 fill-cyan-500" />
+          <span class="text-xs font-mono tracking-wider font-extrabold uppercase">Power Strike (+20 $HVAI)</span>
         </div>
-        <span class="text-xs font-mono font-black text-cyan-400 bg-cyan-400/10 px-2.5 py-1 rounded-lg border border-cyan-400/30">
+        <span 
+          class="text-xs font-mono font-black px-2.5 py-1 rounded-lg border"
+          :class="isWhiteTheme 
+            ? 'text-cyan-900 bg-cyan-100 border-cyan-300' 
+            : 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30'"
+        >
           2 WLD
         </span>
       </button>
@@ -504,5 +647,44 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
 .animate-smoke-pulse {
   animation: smokePulse 4s ease-in-out infinite;
+}
+
+/* Volumetric Fog Keyframes for Boss 2, 4, 6, 7 */
+@keyframes fogDrift1 {
+  0% {
+    transform: translate3d(-15%, 0, 0) scale(1, 0.9);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translate3d(15%, -12px, 0) scale(1.15, 1.05);
+    opacity: 0.75;
+  }
+  100% {
+    transform: translate3d(-15%, 0, 0) scale(1, 0.9);
+    opacity: 0.45;
+  }
+}
+
+@keyframes fogDrift2 {
+  0% {
+    transform: translate3d(18%, -6px, 0) scale(1.1, 1.05);
+    opacity: 0.65;
+  }
+  50% {
+    transform: translate3d(-18%, 8px, 0) scale(0.95, 0.9);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translate3d(18%, -6px, 0) scale(1.1, 1.05);
+    opacity: 0.65;
+  }
+}
+
+.animate-fog-1 {
+  animation: fogDrift1 10s ease-in-out infinite;
+}
+
+.animate-fog-2 {
+  animation: fogDrift2 14s ease-in-out infinite;
 }
 </style>
