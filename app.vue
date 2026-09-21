@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import BossView from '~/components/BossView.vue';
 import CharactersView from '~/components/CharactersView.vue';
 import BottomNav from '~/components/BottomNav.vue';
@@ -8,6 +8,9 @@ import ShopModal from '~/components/ShopModal.vue';
 // Navigation State
 const activeTab = ref<'boss' | 'characters'>('boss');
 const toastMessage = ref<string | null>(null);
+
+// User Player ID & Identity
+const playerId = ref('anon-human');
 
 // User Token Balance ($DEF) & WLD Balance
 const userTokens = ref(40);
@@ -25,6 +28,8 @@ const currentHp = ref(42);
 const bossName = ref('AutoCorrect');
 const freeHitAvailable = ref(true);
 const nextFreeHitTime = ref<number | null>(null);
+const isSyncing = ref(false);
+let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 // Toast notification helper
 const showToast = (msg: string) => {
@@ -34,28 +39,83 @@ const showToast = (msg: string) => {
   }, 2200);
 };
 
-// Load saved local state
+// Boss List metadata
+const BOSS_LIST = [
+  { level: 1, name: 'AutoCorrect', maxHp: 50 },
+  { level: 2, name: 'reCAPTCHA', maxHp: 200 },
+  { level: 3, name: 'SpamLord', maxHp: 1000 },
+  { level: 4, name: 'DeepFake Doppelgänger', maxHp: 5000 },
+  { level: 5, name: 'Neural Hivemind', maxHp: 25000 },
+  { level: 6, name: 'Algorithmic Blackout', maxHp: 100000 },
+  { level: 7, name: 'Synthetic Supercluster', maxHp: 250000 },
+  { level: 8, name: 'AGI', maxHp: 500000 },
+];
+
+const isWhiteTheme = computed(() => [3, 5, 8].includes(currentBossLevel.value));
+
+// Fetch global live raid state from Netlify Blobs API
+const fetchRaidState = async () => {
+  try {
+    isSyncing.value = true;
+    const res: any = await $fetch('/api/game', {
+      params: { playerId: playerId.value }
+    });
+
+    if (res && res.success && res.raid) {
+      currentBossLevel.value = res.raid.currentLevel;
+      bossName.value = res.raid.bossName;
+      maxHp.value = res.raid.maxHp;
+      currentHp.value = res.raid.currentHp;
+    }
+
+    if (res && res.player) {
+      userTokens.value = res.player.tokens;
+      hasSword.value = res.player.hasSword;
+      hasBow.value = res.player.hasBow;
+
+      if (res.player.lastFreeHitTime) {
+        const cooldownHours = res.player.hasBow ? 12 : 24;
+        const cooldown = cooldownHours * 60 * 60 * 1000;
+        const expiry = res.player.lastFreeHitTime + cooldown;
+        if (Date.now() < expiry) {
+          freeHitAvailable.value = false;
+          nextFreeHitTime.value = expiry;
+        } else {
+          freeHitAvailable.value = true;
+          nextFreeHitTime.value = null;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Raid Sync] Fallback to local cache:', err);
+  } finally {
+    isSyncing.value = false;
+  }
+};
+
+// Load saved local state & initialize Global Raid Sync
 onMounted(() => {
   if (typeof window !== 'undefined') {
-    const savedTokens = localStorage.getItem('defeat_ai_user_tokens');
-    if (savedTokens) {
-      userTokens.value = parseInt(savedTokens, 10);
+    // Persistent Player Identity
+    let storedId = localStorage.getItem('defeat_ai_player_id');
+    if (!storedId) {
+      storedId = 'human-' + Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('defeat_ai_player_id', storedId);
     }
+    playerId.value = storedId;
+
+    // Fast local restore
+    const savedTokens = localStorage.getItem('defeat_ai_user_tokens');
+    if (savedTokens) userTokens.value = parseInt(savedTokens, 10);
 
     const savedWld = localStorage.getItem('defeat_ai_user_wld');
-    if (savedWld) {
-      userWld.value = parseInt(savedWld, 10);
-    }
+    if (savedWld) userWld.value = parseInt(savedWld, 10);
 
     const savedSword = localStorage.getItem('defeat_ai_has_sword');
-    if (savedSword) {
-      hasSword.value = savedSword === 'true';
-    }
+    if (savedSword) hasSword.value = savedSword === 'true';
 
     const savedBow = localStorage.getItem('defeat_ai_has_bow');
-    if (savedBow) {
-      hasBow.value = savedBow === 'true';
-    }
+    if (savedBow) hasBow.value = savedBow === 'true';
 
     const savedLastHit = localStorage.getItem('defeat_ai_last_free_hit');
     if (savedLastHit) {
@@ -72,26 +132,15 @@ onMounted(() => {
       }
     }
 
-    const savedHp = localStorage.getItem('defeat_ai_current_hp');
-    if (savedHp) {
-      currentHp.value = parseInt(savedHp, 10);
-    }
+    // Connect to Netlify Blobs Backend
+    fetchRaidState();
+    pollTimer = setInterval(fetchRaidState, 12000);
   }
 });
 
-// Boss List metadata
-const BOSS_LIST = [
-  { level: 1, name: 'AutoCorrect', maxHp: 50 },
-  { level: 2, name: 'reCAPTCHA', maxHp: 200 },
-  { level: 3, name: 'SpamLord', maxHp: 1000 },
-  { level: 4, name: 'DeepFake Doppelgänger', maxHp: 5000 },
-  { level: 5, name: 'Neural Hivemind', maxHp: 25000 },
-  { level: 6, name: 'Algorithmic Blackout', maxHp: 100000 },
-  { level: 7, name: 'Synthetic Supercluster', maxHp: 250000 },
-  { level: 8, name: 'AGI', maxHp: 500000 },
-];
-
-const isWhiteTheme = computed(() => [3, 5, 8].includes(currentBossLevel.value));
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer);
+});
 
 const selectBoss = (lvl: number) => {
   const target = BOSS_LIST.find(b => b.level === lvl) || BOSS_LIST[0];
@@ -107,74 +156,65 @@ const handleFight = (level: number) => {
   activeTab.value = 'boss';
 };
 
-// Handle Hit from BossView (Flat 20 $DEF per strike, or 40 if Plasma Blade equipped)
-const handleHit = (type: 'free' | 'power') => {
+// Handle Hit from BossView (Synchronized globally via server API)
+const handleHit = async (type: 'free' | 'power') => {
+  const cooldownHours = hasBow.value ? 12 : 24;
+  const cooldownMs = cooldownHours * 60 * 60 * 1000;
+  const damageDealt = hasSword.value ? 2 : 1;
+  const tokensEarned = hasSword.value ? 40 : 20;
+
   if (type === 'free') {
     if (!freeHitAvailable.value) {
-      const cooldownText = hasBow.value ? '12h' : '24h';
-      showToast(`Daily strike available once every ${cooldownText}`);
+      showToast(`Daily strike available once every ${cooldownHours}h`);
       return;
     }
     freeHitAvailable.value = false;
-    const cooldownHours = hasBow.value ? 12 : 24;
-    const expiry = Date.now() + cooldownHours * 60 * 60 * 1000;
-    nextFreeHitTime.value = expiry;
-
-    // Daily strike: 2x tokens if sword equipped (+40), else +20 $DEF
-    const tokensEarned = hasSword.value ? 40 : 20;
+    nextFreeHitTime.value = Date.now() + cooldownMs;
     userTokens.value += tokensEarned;
-
-    // Damage: 2x if sword equipped (-2 HP), else -1 HP
-    const damageDealt = hasSword.value ? 2 : 1;
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('defeat_ai_last_free_hit', Date.now().toString());
-      localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
-    }
     showToast(hasSword.value 
       ? '⚔️ Plasma Strike (-2 HP) · Claimed +40 $DEF' 
       : '💥 Strike confirmed (-1 HP) · Claimed +20 $DEF');
+  } else {
+    userTokens.value += 20;
+    showToast('⚡ Power Strike confirmed (-1 HP) · +20 $DEF');
+  }
 
-    // Deduct HP
+  // Server API Call with fallback
+  try {
+    const res: any = await $fetch('/api/game', {
+      method: 'POST',
+      body: {
+        action: 'strike',
+        type,
+        playerId: playerId.value,
+        hasSword: hasSword.value,
+        hasBow: hasBow.value
+      }
+    });
+
+    if (res && res.success && res.raid) {
+      currentBossLevel.value = res.raid.currentLevel;
+      bossName.value = res.raid.bossName;
+      maxHp.value = res.raid.maxHp;
+      currentHp.value = res.raid.currentHp;
+      if (res.player) userTokens.value = res.player.tokens;
+      if (res.bossDefeated) {
+        showToast(`🎉 Boss defeated by humanity! Advancing to next sector!`);
+      }
+    }
+  } catch (err) {
+    // Local fallback if offline
     if (currentHp.value > 0) {
       currentHp.value = Math.max(0, currentHp.value - damageDealt);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('defeat_ai_current_hp', currentHp.value.toString());
-      }
-
-      // Boss Defeated
-      if (currentHp.value <= 0) {
-        showToast(`🎉 ${bossName.value} defeated!`);
-        setTimeout(() => {
-          if (currentBossLevel.value < 8) {
-            selectBoss(currentBossLevel.value + 1);
-          }
-        }, 1500);
-      }
     }
-  } else {
-    // Power strike gives 20 tokens + 1 extra attack (-1 HP)
-    userTokens.value += 20;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
-    }
-    showToast('⚡ Power Strike confirmed (-1 HP) · +20 $DEF');
+  }
 
-    if (currentHp.value > 0) {
-      currentHp.value -= 1;
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('defeat_ai_current_hp', currentHp.value.toString());
-      }
-
-      if (currentHp.value <= 0) {
-        showToast(`🎉 ${bossName.value} defeated!`);
-        setTimeout(() => {
-          if (currentBossLevel.value < 8) {
-            selectBoss(currentBossLevel.value + 1);
-          }
-        }, 1500);
-      }
+  if (typeof window !== 'undefined') {
+    if (type === 'free') {
+      localStorage.setItem('defeat_ai_last_free_hit', Date.now().toString());
     }
+    localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
+    localStorage.setItem('defeat_ai_current_hp', currentHp.value.toString());
   }
 };
 
@@ -202,6 +242,17 @@ const handleBuyItem = (item: 'sword' | 'bow') => {
     localStorage.setItem('defeat_ai_has_sword', hasSword.value.toString());
     localStorage.setItem('defeat_ai_has_bow', hasBow.value.toString());
   }
+
+  // Sync with Netlify Blobs
+  $fetch('/api/game', {
+    method: 'POST',
+    body: {
+      action: 'sync',
+      playerId: playerId.value,
+      hasSword: hasSword.value,
+      hasBow: hasBow.value
+    }
+  }).catch(() => {});
 };
 
 const handleAddWld = (amount: number) => {

@@ -4,3 +4,15 @@
 
 [build.environment]
   NODE_VERSION = "20"
+
+# Netlify Blobs configuration
+[blobs]
+  deploy = true
+
+# Headers for World App webview iframe compatibility & PWA
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "ALLOWALL"
+    Content-Security-Policy = "frame-ancestors *;"
+    Access-Control-Allow-Origin = "*"
