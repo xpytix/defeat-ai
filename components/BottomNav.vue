@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import { Swords, ShieldAlert } from 'lucide-vue-next';
+import { Crosshair, LayoutGrid } from 'lucide-vue-next';
 
 defineProps<{
-  activeTab: 'boss' | 'bestiary'
+  activeTab: 'boss' | 'characters'
 }>();
 
 const emit = defineEmits<{
-  (e: 'update:activeTab', tab: 'boss' | 'bestiary'): void
+  (e: 'update:activeTab', tab: 'boss' | 'characters'): void
 }>();
 
-const selectTab = (tab: 'boss' | 'bestiary') => {
+const selectTab = (tab: 'boss' | 'characters') => {
   emit('update:activeTab', tab);
-  // Trigger light mobile haptic if supported
   if (typeof window !== 'undefined' && 'vibrate' in navigator) {
     navigator.vibrate(10);
   }
@@ -19,58 +18,36 @@ const selectTab = (tab: 'boss' | 'bestiary') => {
 </script>
 
 <template>
-  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-cyber-surface/95 backdrop-blur-xl border-t border-cyber-border/80 pb-safe select-none transition-all">
-    <div class="max-w-md mx-auto px-6 py-2.5 flex items-center justify-around">
+  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-[#07070A]/90 backdrop-blur-2xl border-t border-white/5 pb-safe select-none">
+    <div class="max-w-xs mx-auto px-6 py-2 flex items-center justify-around">
       
-      <!-- TAB 1: BOSS (ARENA) -->
+      <!-- TAB 1: BOSS -->
       <button 
         @click="selectTab('boss')"
-        class="flex-1 flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all duration-200 relative group"
+        class="flex-1 flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-all duration-200"
         :class="activeTab === 'boss' 
-          ? 'text-cyber-primary bg-cyber-primary/10 shadow-[0_0_20px_rgba(255,46,85,0.15)] border border-cyber-primary/20' 
-          : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 border border-transparent'"
+          ? 'text-white' 
+          : 'text-zinc-600 hover:text-zinc-400'"
       >
-        <div class="relative">
-          <Swords class="w-6 h-6 transition-transform duration-200 group-active:scale-90" />
-          <!-- Active Pulsing Dot -->
-          <span 
-            v-if="activeTab === 'boss'" 
-            class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyber-primary animate-ping"
-          />
-          <span 
-            v-if="activeTab === 'boss'" 
-            class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyber-primary"
-          />
-        </div>
-        <span class="text-[11px] font-black tracking-wider uppercase mt-1">
+        <Crosshair class="w-5 h-5 transition-transform duration-200" :class="activeTab === 'boss' ? 'text-rose-500 scale-110' : ''" />
+        <span class="text-[10px] font-mono tracking-widest uppercase mt-1 font-semibold">
           BOSS
         </span>
       </button>
 
-      <!-- DIVIDER -->
-      <div class="w-px h-8 bg-cyber-border/60 mx-2"></div>
+      <div class="w-px h-5 bg-white/10"></div>
 
-      <!-- TAB 2: POSTACIE (BESTIARIUSZ) -->
+      <!-- TAB 2: CHARACTERS -->
       <button 
-        @click="selectTab('bestiary')"
-        class="flex-1 flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all duration-200 relative group"
-        :class="activeTab === 'bestiary' 
-          ? 'text-cyber-cyan bg-cyber-cyan/10 shadow-[0_0_20px_rgba(0,240,255,0.15)] border border-cyber-cyan/20' 
-          : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 border border-transparent'"
+        @click="selectTab('characters')"
+        class="flex-1 flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-all duration-200"
+        :class="activeTab === 'characters' 
+          ? 'text-white' 
+          : 'text-zinc-600 hover:text-zinc-400'"
       >
-        <div class="relative">
-          <ShieldAlert class="w-6 h-6 transition-transform duration-200 group-active:scale-90" />
-          <span 
-            v-if="activeTab === 'bestiary'" 
-            class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyber-cyan animate-ping"
-          />
-          <span 
-            v-if="activeTab === 'bestiary'" 
-            class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyber-cyan"
-          />
-        </div>
-        <span class="text-[11px] font-black tracking-wider uppercase mt-1">
-          POSTACIE
+        <LayoutGrid class="w-5 h-5 transition-transform duration-200" :class="activeTab === 'characters' ? 'text-cyan-400 scale-110' : ''" />
+        <span class="text-[10px] font-mono tracking-widest uppercase mt-1 font-semibold">
+          CHARACTERS
         </span>
       </button>
 

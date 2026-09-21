@@ -1,20 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { Zap, Heart, Flame, Shield, Users, Trophy } from 'lucide-vue-next';
 
 interface FloatingDamage {
   id: number;
   value: string;
   x: number;
   y: number;
-}
-
-interface CombatLogItem {
-  id: number;
-  user: string;
-  flag: string;
-  type: 'free' | 'power';
-  time: string;
 }
 
 const props = defineProps<{
@@ -30,42 +21,36 @@ const emit = defineEmits<{
   (e: 'hit', type: 'free' | 'power'): void
 }>();
 
-// State
+// 3D Parallax Tilt State
+const tiltX = ref(0);
+const tiltY = ref(0);
 const isShaking = ref(false);
 const floatingDamages = ref<FloatingDamage[]>([]);
 const countdownText = ref('24:00:00');
 let countdownInterval: any = null;
 
-// Combat feed simulation
-const combatLogs = ref<CombatLogItem[]>([
-  { id: 1, user: '0x49a...f81', flag: '🇵🇱', type: 'free', time: '1 min temu' },
-  { id: 2, user: '0x81b...29c', flag: '🇯🇵', type: 'power', time: '3 min temu' },
-  { id: 3, user: '0x32c...7ea', flag: '🇩🇪', type: 'free', time: '5 min temu' }
-]);
-
-// HP Calculations
+// HP Percentage
 const hpPercent = computed(() => {
   if (props.maxHp <= 0) return 0;
   return Math.max(0, Math.min(100, Math.round((props.currentHp / props.maxHp) * 100)));
 });
 
-// Update countdown timer
+// Countdown logic
 const updateCountdown = () => {
   if (!props.nextFreeHitTime || props.freeHitAvailable) {
-    countdownText.value = 'Dostępny!';
+    countdownText.value = 'Ready';
     return;
   }
-  const now = Date.now();
-  const diff = Math.max(0, props.nextFreeHitTime - now);
+  const diff = Math.max(0, props.nextFreeHitTime - Date.now());
   if (diff <= 0) {
-    countdownText.value = 'Dostępny!';
+    countdownText.value = 'Ready';
     return;
   }
 
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-  countdownText.value = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  const h = Math.floor(diff / (1000 * 60 * 60));
+  const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const s = Math.floor((diff % (1000 * 60)) / 1000);
+  countdownText.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 };
 
 onMounted(() => {
@@ -77,248 +62,174 @@ onUnmounted(() => {
   if (countdownInterval) clearInterval(countdownInterval);
 });
 
-// Trigger Hit
-const handleHit = (type: 'free' | 'power', event?: MouseEvent) => {
-  // Shake animation
+// 3D Interactive Parallax on Touch/Move
+const handlePointerMove = (e: MouseEvent | TouchEvent) => {
+  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  const halfW = window.innerWidth / 2;
+  const halfH = window.innerHeight / 2;
+  tiltX.value = Math.max(-12, Math.min(12, ((clientY - halfH) / halfH) * -12));
+  tiltY.value = Math.max(-12, Math.min(12, ((clientX - halfW) / halfW) * 12));
+};
+
+const resetTilt = () => {
+  tiltX.value = 0;
+  tiltY.value = 0;
+};
+
+// Hit Trigger
+const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => {
   isShaking.value = true;
   setTimeout(() => {
     isShaking.value = false;
-  }, 350);
+  }, 250);
 
-  // Trigger floating damage number
   const id = Date.now() + Math.random();
-  const x = event ? (event.clientX - 40 + (Math.random() * 40 - 20)) : 160;
-  const y = event ? (event.clientY - 60) : 250;
-  
+  let clientX = window.innerWidth / 2;
+  let clientY = window.innerHeight / 2 - 40;
+
+  if (event) {
+    if ('touches' in event && event.touches.length > 0) {
+      clientX = event.touches[0].clientX;
+      clientY = event.touches[0].clientY;
+    } else if ('clientX' in event) {
+      clientX = event.clientX;
+      clientY = event.clientY;
+    }
+  }
+
   floatingDamages.value.push({
     id,
-    value: type === 'power' ? '-1 HP (CRIT)' : '-1 HP',
-    x,
-    y
+    value: type === 'power' ? '-1 CRIT' : '-1',
+    x: clientX + (Math.random() * 40 - 20),
+    y: clientY - 30
   });
 
   setTimeout(() => {
     floatingDamages.value = floatingDamages.value.filter(d => d.id !== id);
-  }, 800);
+  }, 750);
 
-  // Add to local combat log
-  combatLogs.value.unshift({
-    id: Date.now(),
-    user: 'Ty (Człowiek)',
-    flag: '🌍',
-    type,
-    time: 'teraz'
-  });
-  if (combatLogs.value.length > 5) combatLogs.value.pop();
-
-  // Emit event to parent
   emit('hit', type);
 
-  // Mobile haptic vibration
   if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-    navigator.vibrate(type === 'power' ? [30, 50, 30] : 25);
+    navigator.vibrate(type === 'power' ? [20, 30, 20] : 20);
   }
 };
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col justify-between px-4 pt-2 pb-24 overflow-y-auto max-w-md mx-auto w-full select-none">
+  <div 
+    class="flex-1 flex flex-col justify-between items-center px-6 pt-4 pb-24 max-w-sm mx-auto w-full select-none"
+    @mousemove="handlePointerMove"
+    @touchmove="handlePointerMove"
+    @mouseleave="resetTilt"
+    @touchend="resetTilt"
+  >
     
-    <!-- TOP BOSS BANNER -->
-    <div class="flex items-center justify-between bg-cyber-surface/70 border border-cyber-border/70 rounded-2xl p-3 backdrop-blur-md">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-cyber-primary/10 border border-cyber-primary/30 flex items-center justify-center text-cyber-primary">
-          <Flame class="w-5 h-5 animate-pulse" />
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <span class="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-cyber-primary/20 text-cyber-primary border border-cyber-primary/30">
-              POZIOM {{ level }}
-            </span>
-            <span class="text-[11px] font-mono text-zinc-400">RAJD #001</span>
-          </div>
-          <h2 class="text-base font-extrabold text-white tracking-wide mt-0.5">
-            {{ bossName }}
-          </h2>
-        </div>
-      </div>
-      
-      <div class="text-right">
-        <div class="text-[10px] font-mono uppercase text-zinc-400">PULA NAGRÓD</div>
-        <div class="text-xs font-black text-cyber-amber flex items-center gap-1 justify-end">
-          <Trophy class="w-3.5 h-3.5" />
-          <span>5 000 HVAI</span>
-        </div>
-      </div>
+    <!-- MINIMALIST LEVEL HEADER -->
+    <div class="w-full flex items-center justify-between text-[11px] font-mono tracking-widest text-zinc-500 pt-2">
+      <span class="text-zinc-400 font-bold">LVL {{ String(level).padStart(2, '0') }}</span>
+      <span class="uppercase tracking-widest text-[10px] text-zinc-600 font-semibold">{{ bossName }}</span>
+      <span>{{ currentHp }} / {{ maxHp }} HP</span>
     </div>
 
-    <!-- BOSS ARENA / GRAPHIC -->
-    <div class="relative flex flex-col items-center justify-center my-4 py-6">
+    <!-- 3D CENTERPIECE ARENA -->
+    <div class="relative flex-1 flex flex-col items-center justify-center my-auto w-full">
       
-      <!-- Ambient Glow Behind Boss -->
+      <!-- Ambient Backlight -->
       <div 
-        class="absolute w-56 h-56 rounded-full blur-[70px] pointer-events-none transition-all duration-300"
-        :class="hpPercent > 50 ? 'bg-cyber-primary/20' : 'bg-cyber-cyan/20'"
+        class="absolute w-64 h-64 rounded-full blur-[90px] pointer-events-none transition-all duration-700 -z-10"
+        :class="hpPercent > 30 ? 'bg-rose-600/15' : 'bg-cyan-500/15'"
       />
 
       <!-- Floating Damage Numbers -->
       <div 
         v-for="d in floatingDamages" 
         :key="d.id"
-        class="fixed z-50 pointer-events-none font-black font-mono text-lg animate-float-damage"
-        :class="d.value.includes('CRIT') ? 'text-cyber-amber text-xl drop-shadow-[0_0_12px_rgba(255,184,0,0.8)]' : 'text-cyber-primary drop-shadow-[0_0_10px_rgba(255,46,85,0.8)]'"
+        class="fixed z-50 pointer-events-none font-mono font-black text-xl animate-float-damage"
+        :class="d.value.includes('CRIT') ? 'text-amber-400 drop-shadow-[0_0_12px_rgba(251,191,36,0.8)]' : 'text-rose-500 drop-shadow-[0_0_10px_rgba(244,63,94,0.8)]'"
         :style="{ left: `${d.x}px`, top: `${d.y}px` }"
       >
         {{ d.value }}
       </div>
 
-      <!-- Boss Interactive Avatar (Cyber Robot Core) -->
+      <!-- 3D Character Model with Interactive Parallax -->
       <div 
-        @click="freeHitAvailable ? handleHit('free', $event) : handleHit('power', $event)"
-        class="relative w-52 h-52 flex items-center justify-center cursor-pointer transition-transform duration-100 active:scale-95"
+        @click="freeHitAvailable ? triggerHit('free', $event) : triggerHit('power', $event)"
+        class="relative w-72 h-72 rounded-3xl cursor-pointer flex items-center justify-center transition-transform duration-100 ease-out active:scale-95"
         :class="{ 'animate-shake': isShaking }"
+        :style="{
+          transform: `perspective(800px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,
+        }"
       >
-        <!-- Futuristic AI Entity SVG -->
-        <svg class="w-full h-full drop-shadow-[0_10px_25px_rgba(0,0,0,0.5)]" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- Outer Shield Ring -->
-          <circle cx="100" cy="100" r="90" stroke="#242436" stroke-width="3" stroke-dasharray="8 6" opacity="0.6"/>
-          <circle cx="100" cy="100" r="78" fill="#12121A" stroke="#FF2E55" stroke-width="2" stroke-opacity="0.4"/>
-          
-          <!-- Cyber Skull / Robot Head -->
-          <path d="M60 70C60 48 78 30 100 30C122 30 140 48 140 70V110C140 125 125 140 100 140C75 140 60 125 60 110V70Z" fill="#181824" stroke="#FF2E55" stroke-width="3"/>
-          
-          <!-- Visor / Eye Sensor -->
-          <rect x="75" y="70" width="50" height="14" rx="4" fill="#0A0A0F" stroke="#00F0FF" stroke-width="2"/>
-          <circle cx="95" cy="77" r="4" fill="#00F0FF" class="animate-ping"/>
-          <circle cx="95" cy="77" r="4" fill="#00F0FF"/>
-          <line x1="77" y1="77" x2="123" y2="77" stroke="#00F0FF" stroke-width="1" stroke-dasharray="2 2"/>
-          
-          <!-- Cyber Wires and Circuit Details -->
-          <path d="M70 125L50 145M130 125L150 145M100 140V165" stroke="#242436" stroke-width="3" stroke-linecap="round"/>
-          <circle cx="50" cy="145" r="4" fill="#FF2E55"/>
-          <circle cx="150" cy="145" r="4" fill="#FF2E55"/>
-          <circle cx="100" cy="165" r="4" fill="#00F0FF"/>
-          
-          <!-- Mouth Ventilation Grill -->
-          <rect x="85" y="105" width="30" height="4" rx="1" fill="#FF2E55" opacity="0.8"/>
-          <rect x="87" y="113" width="26" height="3" rx="1" fill="#FF2E55" opacity="0.6"/>
-          <rect x="90" y="120" width="20" height="2" rx="1" fill="#FF2E55" opacity="0.4"/>
-        </svg>
+        <!-- 3D Rendered Boss Image -->
+        <div class="relative w-64 h-64 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.9)] border border-white/5 bg-black">
+          <img 
+            src="/bosses/boss_1.jpg" 
+            alt="AI Boss 3D" 
+            class="w-full h-full object-cover select-none pointer-events-none transition-all duration-300 animate-pulse-slow"
+            :class="{ 'brightness-125 filter contrast-125': isShaking }"
+          />
 
-        <!-- Tap Prompt Badge Overlay -->
-        <div class="absolute -bottom-2 bg-cyber-surface/90 border border-cyber-border px-3 py-1 rounded-full text-[10px] font-mono tracking-wider text-zinc-400 shadow-md">
-          DOTKNIJ, ABY ZADAĆ CIOS
+          <!-- Red Hit Flash Overlay -->
+          <div 
+            v-if="isShaking"
+            class="absolute inset-0 bg-rose-600/30 backdrop-blur-[1px] pointer-events-none transition-opacity"
+          />
+
+          <!-- Subtle Holographic Vignette -->
+          <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
         </div>
       </div>
 
-      <!-- BOSS HEALTH BAR -->
-      <div class="w-full mt-6 bg-cyber-surface/80 border border-cyber-border rounded-2xl p-3.5 backdrop-blur-sm">
-        <div class="flex items-center justify-between text-xs font-mono font-bold mb-2">
-          <span class="flex items-center gap-1.5 text-zinc-300">
-            <Heart class="w-3.5 h-3.5 text-cyber-primary fill-cyber-primary" />
-            PUNKTY ŻYCIA (HP)
-          </span>
-          <span class="text-white font-black tracking-wider">
-            {{ currentHp }} <span class="text-zinc-500">/</span> {{ maxHp }} HP 
-            <span class="text-cyber-cyan ml-1">({{ hpPercent }}%)</span>
-          </span>
-        </div>
-        
-        <!-- Progress Bar -->
-        <div class="w-full h-4 bg-black/60 rounded-full overflow-hidden p-0.5 border border-white/5 relative">
+      <!-- MINIMALIST HP PROGRESS BAR -->
+      <div class="w-full max-w-[260px] mt-6">
+        <div class="w-full h-1.5 bg-zinc-900 rounded-full overflow-hidden relative">
           <div 
-            class="h-full rounded-full transition-all duration-300 relative shadow-lg"
-            :class="hpPercent > 30 ? 'bg-gradient-to-r from-cyber-primary to-cyber-amber' : 'bg-gradient-to-r from-red-600 to-cyber-primary animate-pulse'"
+            class="h-full rounded-full transition-all duration-300"
+            :class="hpPercent > 30 ? 'bg-rose-500' : 'bg-red-500 animate-pulse'"
             :style="{ width: `${hpPercent}%` }"
-          >
-            <!-- Striped Overlay Effect -->
-            <div class="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[length:16px_16px] opacity-40"></div>
-          </div>
+          />
+        </div>
+        <div class="flex justify-between items-center text-[9px] font-mono text-zinc-500 mt-2 px-0.5">
+          <span>HP POOL</span>
+          <span class="font-bold text-zinc-400">{{ hpPercent }}%</span>
         </div>
       </div>
 
     </div>
 
-    <!-- ACTION BUTTONS -->
-    <div class="space-y-2.5 my-2">
+    <!-- MINIMALIST ACTION BUTTONS -->
+    <div class="w-full max-w-[280px] space-y-2 mt-auto">
       
-      <!-- BUTTON 1: DARMOWY CIOS (1/1 NA 24H) -->
+      <!-- FREE STRIKE BUTTON (OR COUNTDOWN) -->
       <button 
         v-if="freeHitAvailable"
-        @click="handleHit('free', $event)"
-        class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-cyber-primary to-rose-600 hover:from-rose-500 hover:to-cyber-primary text-white font-black text-sm tracking-wider uppercase flex items-center justify-center gap-3 shadow-[0_0_25px_rgba(255,46,85,0.4)] active:scale-[0.98] transition-all border border-cyber-primary/40"
+        @click="triggerHit('free', $event)"
+        class="w-full py-3.5 px-6 rounded-xl bg-white text-black font-extrabold text-xs tracking-widest uppercase hover:bg-zinc-200 active:scale-[0.98] transition-all shadow-[0_0_30px_rgba(255,255,255,0.15)]"
       >
-        <Flame class="w-5 h-5 fill-white" />
-        <span>💥 ZADAJ DARMOWY CIOS (1/1)</span>
+        STRIKE
       </button>
 
-      <!-- BUTTON 1 (DISABLED / COUNTDOWN) -->
       <div 
         v-else 
-        class="w-full py-3.5 px-5 rounded-2xl bg-cyber-surface/60 border border-cyber-border flex items-center justify-between text-zinc-400"
+        class="w-full py-3 px-4 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between text-zinc-500 text-xs font-mono"
       >
-        <div class="flex items-center gap-2">
-          <Shield class="w-4 h-4 text-zinc-500" />
-          <span class="text-xs font-semibold">Darmowy cios wykorzystany</span>
-        </div>
-        <div class="text-xs font-mono font-bold text-cyber-cyan bg-cyber-cyan/10 border border-cyber-cyan/20 px-2.5 py-1 rounded-lg">
-          ⏳ {{ countdownText }}
-        </div>
+        <span class="text-[10px] uppercase tracking-wider text-zinc-600">Daily Strike</span>
+        <span class="font-bold text-zinc-300">⏳ {{ countdownText }}</span>
       </div>
 
-      <!-- BUTTON 2: POWER STRIKE (2 WLD) -->
+      <!-- POWER STRIKE BUTTON -->
       <button 
-        @click="handleHit('power', $event)"
-        class="w-full py-3 px-5 rounded-2xl bg-cyber-card border border-cyber-cyan/40 hover:border-cyber-cyan/80 text-white font-bold text-xs tracking-wider flex items-center justify-between group active:scale-[0.98] transition-all hover:bg-cyber-cyan/5 shadow-[0_0_15px_rgba(0,240,255,0.1)]"
+        @click="triggerHit('power', $event)"
+        class="w-full py-2.5 px-4 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 active:scale-[0.98] transition-all flex items-center justify-between text-zinc-400 hover:text-white"
       >
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-xl bg-cyber-cyan/10 border border-cyber-cyan/30 flex items-center justify-center text-cyber-cyan group-hover:scale-105 transition-transform">
-            <Zap class="w-4 h-4 fill-cyber-cyan" />
-          </div>
-          <div class="text-left">
-            <div class="text-white font-extrabold text-xs">POWER STRIKE (+1 CIOS)</div>
-            <div class="text-[10px] text-zinc-400">Natychmiastowe uderzenie bez limitu</div>
-          </div>
-        </div>
-
-        <div class="bg-cyber-cyan/20 text-cyber-cyan border border-cyber-cyan/40 px-3 py-1.5 rounded-xl font-mono font-black text-xs">
+        <span class="text-[10px] font-mono tracking-wider font-semibold uppercase">Power Strike</span>
+        <span class="text-[10px] font-mono font-bold text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded border border-cyan-400/20">
           2 WLD
-        </div>
+        </span>
       </button>
 
-    </div>
-
-    <!-- COMBAT LIVE FEED (TICKER) -->
-    <div class="bg-cyber-surface/50 border border-cyber-border/60 rounded-xl p-2.5 mt-1">
-      <div class="flex items-center justify-between text-[10px] font-mono text-zinc-500 uppercase mb-1.5 px-1">
-        <span class="flex items-center gap-1">
-          <Users class="w-3 h-3" />
-          OSTATNIE CIOSY LUDZI (NA ŻYWO)
-        </span>
-        <span class="w-2 h-2 rounded-full bg-cyber-emerald animate-pulse"></span>
-      </div>
-      
-      <div class="space-y-1">
-        <div 
-          v-for="log in combatLogs" 
-          :key="log.id"
-          class="flex items-center justify-between text-[11px] font-mono py-1 px-2 rounded-lg bg-black/30 border border-white/5"
-        >
-          <span class="flex items-center gap-1.5 text-zinc-300">
-            <span>{{ log.flag }}</span>
-            <span class="font-bold text-white">{{ log.user }}</span>
-          </span>
-          <span class="flex items-center gap-2">
-            <span 
-              class="px-1.5 py-0.5 rounded text-[9px] font-black"
-              :class="log.type === 'power' ? 'bg-cyber-cyan/20 text-cyber-cyan' : 'bg-cyber-primary/20 text-cyber-primary'"
-            >
-              -1 HP
-            </span>
-            <span class="text-[10px] text-zinc-500">{{ log.time }}</span>
-          </span>
-        </div>
-      </div>
     </div>
 
   </div>
