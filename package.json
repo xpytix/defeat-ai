@@ -6,8 +6,7 @@
     "build": "nuxt build",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
-    "preview": "nuxt preview",
-    "postinstall": "nuxt prepare || true"
+    "preview": "nuxt preview"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.9",
