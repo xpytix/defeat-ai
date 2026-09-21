@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    @apply bg-cyber-bg text-white antialiased select-none;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  /* Custom scrollbar for bestiary */
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 9999px;
+  }
+}
+
+/* Safe area padding utilities for World App */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Floating damage numbers animation */
+@keyframes floatUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-30px) scale(1.3);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-60px) scale(0.9);
+  }
+}
+
+.animate-float-damage {
+  animation: floatUp 0.8s ease-out forwards;
+}

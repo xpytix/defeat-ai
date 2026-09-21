@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="128" fill="#0A0A0F"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" stroke="#FF2E55" stroke-width="8" stroke-opacity="0.3"/>
+  <circle cx="256" cy="256" r="180" fill="#12121A" stroke="#242436" stroke-width="6"/>
+  <!-- Glowing Cyber Aura -->
+  <circle cx="256" cy="256" r="140" fill="url(#coreGlow)" opacity="0.15"/>
+  <!-- Punching Fist / Resistance Icon -->
+  <path d="M210 160h40v140h-40zM262 140h40v160h-40zM314 170h40v130h-40zM158 190h40v110h-40z" fill="#FF2E55"/>
+  <path d="M140 280c0 70 50 100 116 100s116-30 116-100v-30H140v30z" fill="#FF2E55"/>
+  <!-- AI Chip Cutout Overlay -->
+  <path d="M226 310h60v20h-60z" fill="#00F0FF"/>
+  <circle cx="236" cy="320" r="4" fill="#0A0A0F"/>
+  <circle cx="276" cy="320" r="4" fill="#0A0A0F"/>
+  <!-- Lightning Sparks -->
+  <path d="M370 180l20-40-30 10 30-30" stroke="#00F0FF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M142 180l-20-40 30 10-30-30" stroke="#FFB800" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF2E55" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#00F0FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+</svg>

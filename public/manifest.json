@@ -1,0 +1,18 @@
+{
+  "name": "Human vs AI: The Resistance",
+  "short_name": "Human vs AI",
+  "description": "Cooperative AI raid boss battle for verified World App humans.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A0A0F",
+  "theme_color": "#0A0A0F",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
