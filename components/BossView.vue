@@ -37,85 +37,6 @@ const emit = defineEmits<{
   (e: 'selectLevel', level: number): void;
 }>();
 
-// Volumetric Atmosphere / Fog across all rogue entities
-const hasFog = computed(() => true);
-
-const fogStyles = computed(() => {
-  if (props.isWhiteTheme) {
-    switch (props.level) {
-      case 3: // SpamLord (White theme)
-        return {
-          bgBack: 'from-fuchsia-500/20 via-purple-400/10 to-transparent',
-          bgFront: 'from-fuchsia-500/25 via-pink-400/15 to-transparent'
-        };
-      case 5: // Neural Hivemind (White theme)
-        return {
-          bgBack: 'from-violet-500/20 via-indigo-400/10 to-transparent',
-          bgFront: 'from-violet-600/25 via-blue-400/15 to-transparent'
-        };
-      case 8: // AGI (White theme)
-        return {
-          bgBack: 'from-amber-400/25 via-yellow-300/15 to-transparent',
-          bgFront: 'from-amber-400/30 via-yellow-400/20 to-transparent'
-        };
-      default:
-        return {
-          bgBack: 'from-zinc-400/15 to-transparent',
-          bgFront: 'from-zinc-400/20 to-transparent'
-        };
-    }
-  }
-
-  // Dark Theme
-  switch (props.level) {
-    case 1: // AutoCorrect
-      return {
-        bgBack: 'from-cyan-900/50 via-cyan-950/30 to-transparent',
-        bgFront: 'from-cyan-500/35 via-teal-500/20 to-transparent'
-      };
-    case 2: // reCAPTCHA
-      return {
-        bgBack: 'from-yellow-950/50 via-emerald-950/30 to-transparent',
-        bgFront: 'from-amber-500/35 via-emerald-500/20 to-transparent'
-      };
-    case 3: // SpamLord (Dark)
-      return {
-        bgBack: 'from-purple-950/60 via-fuchsia-950/35 to-transparent',
-        bgFront: 'from-fuchsia-600/40 via-purple-500/20 to-transparent'
-      };
-    case 4: // DeepFake Doppelgänger
-      return {
-        bgBack: 'from-indigo-950/60 via-purple-950/35 to-transparent',
-        bgFront: 'from-purple-600/40 via-cyan-500/20 to-transparent'
-      };
-    case 5: // Neural Hivemind (Dark)
-      return {
-        bgBack: 'from-violet-950/60 via-blue-950/35 to-transparent',
-        bgFront: 'from-violet-600/40 via-indigo-500/20 to-transparent'
-      };
-    case 6: // Algorithmic Blackout
-      return {
-        bgBack: 'from-red-950/70 via-zinc-950/40 to-transparent',
-        bgFront: 'from-red-600/45 via-rose-600/25 to-transparent'
-      };
-    case 7: // Synthetic Supercluster
-      return {
-        bgBack: 'from-sky-950/60 via-cyan-950/35 to-transparent',
-        bgFront: 'from-cyan-500/40 via-sky-400/20 to-transparent'
-      };
-    case 8: // AGI (Dark)
-      return {
-        bgBack: 'from-amber-950/60 via-yellow-950/35 to-transparent',
-        bgFront: 'from-amber-500/45 via-yellow-400/25 to-transparent'
-      };
-    default:
-      return {
-        bgBack: 'from-cyan-950/50 to-transparent',
-        bgFront: 'from-cyan-500/35 to-transparent'
-      };
-  }
-});
-
 // 3D Parallax Tilt State
 const tiltX = ref(0);
 const tiltY = ref(0);
@@ -131,31 +52,6 @@ const bossImage = computed(() => {
   }
   return `/bosses/boss_${props.level || 1}.png`;
 });
-
-// Image Preloading & Cyber Fade-In Reveal
-const isImageReady = ref(false);
-const displayedImage = ref('');
-
-const loadBossImage = (src: string) => {
-  isImageReady.value = false;
-  if (typeof window === 'undefined') {
-    displayedImage.value = src;
-    isImageReady.value = true;
-    return;
-  }
-  const img = new Image();
-  img.src = src;
-  img.onload = () => {
-    displayedImage.value = src;
-    setTimeout(() => {
-      isImageReady.value = true;
-    }, 60);
-  };
-  img.onerror = () => {
-    displayedImage.value = src;
-    isImageReady.value = true;
-  };
-};
 
 // Simulated spectator counts
 const spectatorCount = ref('4.2K');
@@ -230,9 +126,6 @@ const setupParticles = () => {
 };
 
 watch([() => props.level, () => props.isWhiteTheme], setupParticles);
-watch(bossImage, (newSrc) => {
-  loadBossImage(newSrc);
-});
 
 // HP Percentage
 const hpPercent = computed(() => {
@@ -261,7 +154,6 @@ const updateCountdown = () => {
 onMounted(() => {
   setupParticles();
   updateCountdown();
-  loadBossImage(bossImage.value);
   countdownInterval = setInterval(updateCountdown, 1000);
 });
 
@@ -449,18 +341,6 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
         />
       </div>
 
-      <!-- FULL-WIDTH VOLUMETRIC ATMOSPHERE: BACK LAYER (Spans entire screen width from edge to edge) -->
-      <div v-if="hasFog" class="absolute inset-x-0 bottom-0 pointer-events-none -z-4 w-full h-44 sm:h-60 overflow-hidden flex flex-col justify-end">
-        <div 
-          class="w-[150%] -ml-[25%] h-full opacity-65 blur-3xl animate-fog-1 bg-gradient-to-t"
-          :class="fogStyles.bgBack"
-        />
-        <div 
-          class="absolute inset-x-0 bottom-0 w-[150%] -ml-[25%] h-32 sm:h-44 opacity-50 blur-2xl animate-fog-2 bg-gradient-to-t"
-          :class="fogStyles.bgBack"
-        />
-      </div>
-
       <!-- LAYER 3: THE 3D BOSS CHARACTER CONTAINER -->
       <div 
         @click="freeHitAvailable ? triggerHit('free', $event) : triggerHit('power', $event)"
@@ -471,42 +351,16 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
         }"
       >
 
-        <!-- CYBER HOLOGRAPHIC SCANNER LOADER (While Image Preloads) -->
-        <div v-if="!isImageReady" class="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
-          <div 
-            class="w-32 h-32 sm:w-40 sm:h-40 rounded-full border border-dashed animate-spin opacity-60"
-            :class="isWhiteTheme ? 'border-zinc-400' : 'border-cyan-400'"
-            style="animation-duration: 8s;"
-          />
-          <div 
-            class="absolute w-16 h-16 rounded-full animate-ping opacity-25"
-            :class="isWhiteTheme ? 'bg-zinc-800' : 'bg-cyan-400'"
-          />
-          <span 
-            class="mt-4 text-[9px] font-mono tracking-widest uppercase font-bold animate-pulse"
-            :class="isWhiteTheme ? 'text-zinc-600' : 'text-cyan-400'"
-          >
-            RESOLVING TARGET...
-          </span>
-        </div>
-
-        <!-- The Boss Image with Smooth Materialize Fade-In & Seamless Edge Feathering -->
+        <!-- The Boss Image: Clean, Crisp & Immediate (No Fade Lag or Gradient Clipping) -->
         <div class="relative w-full h-full flex items-center justify-center overflow-visible">
           <img 
-            :src="displayedImage || bossImage" 
+            :src="bossImage" 
             :alt="bossName" 
-            class="w-full h-full object-contain select-none pointer-events-none transition-all duration-700 ease-out"
+            class="w-full h-full object-contain select-none pointer-events-none transition-transform duration-100"
             :class="[
-              isImageReady 
-                ? 'opacity-100 blur-0 scale-100 translate-y-0' 
-                : 'opacity-0 blur-xl scale-90 translate-y-3',
               isShaking ? 'brightness-125 filter contrast-125 !scale-105' : '',
               isWhiteTheme ? 'mix-blend-multiply' : ''
             ]"
-            :style="{
-              maskImage: 'linear-gradient(to bottom, black 0%, black 72%, transparent 96%)',
-              WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 72%, transparent 96%)'
-            }"
           />
 
           <!-- Red Hit Flash Overlay -->
@@ -518,17 +372,6 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
         <!-- FOREGROUND EMBERS & CYBER SPARKS (DIRECTLY OVERLAPPING BOSS CHASSIS) -->
         <div class="absolute inset-0 pointer-events-none overflow-hidden z-20">
-          
-          <!-- Soft Drifting Cyber Smoke Core Wisp -->
-          <div 
-            class="absolute bottom-12 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full blur-2xl animate-smoke-pulse pointer-events-none"
-            :class="isWhiteTheme 
-              ? 'bg-gradient-to-t from-amber-500/15 via-black/5 to-transparent' 
-              : (level === 8 
-                  ? 'bg-gradient-to-t from-amber-400/20 via-white/10 to-transparent' 
-                  : 'bg-gradient-to-t from-cyan-500/10 via-amber-400/5 to-transparent')"
-          />
-
           <!-- Overlapping Glowing Sparks and Digital Glints -->
           <div 
             v-for="p in foregroundParticles" 
@@ -549,18 +392,6 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
           />
         </div>
 
-      </div>
-
-      <!-- FULL-WIDTH VOLUMETRIC ATMOSPHERE: FOREGROUND LAYER (Rolls across entire screen width & across lower torso) -->
-      <div v-if="hasFog" class="absolute inset-x-0 bottom-0 pointer-events-none z-25 w-full h-24 sm:h-36 overflow-hidden flex flex-col justify-end">
-        <div 
-          class="w-[150%] -ml-[25%] h-full opacity-60 blur-2xl animate-fog-1 bg-gradient-to-t"
-          :class="fogStyles.bgFront"
-        />
-        <div 
-          class="absolute inset-x-0 bottom-0 w-[150%] -ml-[25%] h-16 sm:h-24 opacity-70 blur-xl animate-fog-2 bg-gradient-to-t"
-          :class="fogStyles.bgFront"
-        />
       </div>
 
       <!-- Floating Damage Numbers -->
@@ -698,59 +529,5 @@ const triggerHit = (type: 'free' | 'power', event?: MouseEvent | TouchEvent) => 
 
 .animate-rise-drift {
   animation: riseDrift linear infinite;
-}
-
-@keyframes smokePulse {
-  0%, 100% {
-    transform: translate(-50%, 0) scale(0.9);
-    opacity: 0.2;
-  }
-  50% {
-    transform: translate(-50%, -20px) scale(1.15);
-    opacity: 0.35;
-  }
-}
-
-.animate-smoke-pulse {
-  animation: smokePulse 4s ease-in-out infinite;
-}
-
-/* Volumetric Fog Keyframes for Boss 2, 4, 6, 7 */
-@keyframes fogDrift1 {
-  0% {
-    transform: translate3d(-12%, 0, 0) scale(1, 0.95);
-    opacity: 0.55;
-  }
-  50% {
-    transform: translate3d(12%, -8px, 0) scale(1.1, 1.05);
-    opacity: 0.85;
-  }
-  100% {
-    transform: translate3d(-12%, 0, 0) scale(1, 0.95);
-    opacity: 0.55;
-  }
-}
-
-@keyframes fogDrift2 {
-  0% {
-    transform: translate3d(15%, -4px, 0) scale(1.08, 1.02);
-    opacity: 0.7;
-  }
-  50% {
-    transform: translate3d(-15%, 6px, 0) scale(0.96, 0.92);
-    opacity: 0.45;
-  }
-  100% {
-    transform: translate3d(15%, -4px, 0) scale(1.08, 1.02);
-    opacity: 0.7;
-  }
-}
-
-.animate-fog-1 {
-  animation: fogDrift1 8s ease-in-out infinite;
-}
-
-.animate-fog-2 {
-  animation: fogDrift2 11s ease-in-out infinite;
 }
 </style>
