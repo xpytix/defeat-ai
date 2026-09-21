@@ -9,6 +9,9 @@ import ShopModal from '~/components/ShopModal.vue';
 // App & Treasury Configuration
 const APP_ID = 'app_00e63093c3a6d36ace61c9b587ffcdf8';
 const TREASURY_WALLET = '0x435cf6a63fbc5bc8f4d2b8d0dd02ab16ac45e9aa';
+const DEF_TOKEN_CONTRACT = '0xb767B50e80084330Fe2bF5F2C3CA5d6E0b73B6f6';
+const UNISWAP_POOL_URL = 'https://app.uniswap.org/swap?chain=worldchain&inputCurrency=0x2cFc85d8E48F8EAB294be644d9E25C3030863003&outputCurrency=0xb767B50e80084330Fe2bF5F2C3CA5d6E0b73B6f6';
+const WORLDSCAN_TOKEN_URL = 'https://worldscan.org/token/0xb767B50e80084330Fe2bF5F2C3CA5d6E0b73B6f6';
 
 // Navigation State
 const activeTab = ref<'boss' | 'characters'>('boss');
@@ -345,7 +348,9 @@ const handleHit = async (type: 'free' | 'power') => {
           currentHp.value = res.raid.currentHp;
           maxHp.value = res.raid.maxHp;
         }
-        showToast('⚡ Power Strike confirmed (-1 HP) · +20 $DEF');
+        showToast(hasSword.value 
+          ? '⚡ Plasma Power Strike (-2 HP) · +40 $DEF' 
+          : '⚡ Power Strike (-1 HP) · +20 $DEF');
       }
     } catch (err: any) {
       showToast('Error processing power strike');
@@ -419,6 +424,32 @@ const handleAddWld = (amount: number) => {
     localStorage.setItem('defeat_ai_user_wld', userWld.value.toString());
   }
   showToast(`🪙 Added +${amount} WLD test balance`);
+};
+
+const handleClaimTokens = async (claimData: { amount: number; address: string }) => {
+  try {
+    showToast('⏳ Processing $DEF withdrawal...');
+    const res: any = await $fetch('/api/game', {
+      method: 'POST',
+      body: {
+        action: 'claim',
+        playerId: playerId.value,
+        recipientAddress: claimData.address,
+        amount: claimData.amount
+      }
+    });
+
+    if (res && res.success) {
+      userTokens.value = res.remainingTokens;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
+      }
+      showToast(res.message || `🎉 Successfully claimed ${claimData.amount} $DEF!`);
+    }
+  } catch (err: any) {
+    const errData = err.data || {};
+    showToast(`Claim error: ${errData.error || err.message}`);
+  }
 };
 
 // Dev simulator strike for desktop browser
@@ -498,9 +529,11 @@ const executeDevTestStrike = () => {
       :has-sword="hasSword"
       :has-bow="hasBow"
       :is-white-theme="isWhiteTheme"
+      :player-address="playerId.startsWith('0x') ? playerId : ''"
       @close="isShopOpen = false"
       @buy-item="handleBuyItem"
       @add-wld="handleAddWld"
+      @claim="handleClaimTokens"
     />
 
     <!-- World App Required Modal (When outside World App on desktop) -->

@@ -124,9 +124,9 @@ export default defineEventHandler(async (event) => {
         weapon = player.hasSword ? 'Plasma Blade (2x)' : 'Verified Human Strike';
       } else {
         // === POWER STRIKE (2 WLD) ===
-        damage = 1;
-        tokensEarned = 20;
-        weapon = 'Power Strike (2 WLD)';
+        damage = player.hasSword ? 2 : 1;
+        tokensEarned = player.hasSword ? 40 : 20;
+        weapon = player.hasSword ? 'Plasma Power Strike (2x)' : 'Power Strike (2 WLD)';
       }
 
       // Deduct Boss HP globally
@@ -213,6 +213,50 @@ export default defineEventHandler(async (event) => {
         nextFreeHitTime: type === 'free' ? now + cooldownMs : undefined,
         raid,
         player
+      };
+    }
+
+    if (action === 'claim') {
+      const { recipientAddress, amount } = body || {};
+      const claimAmount = Math.floor(Number(amount));
+
+      if (!recipientAddress || typeof recipientAddress !== 'string' || !recipientAddress.startsWith('0x') || recipientAddress.length !== 42) {
+        setResponseStatus(event, 400);
+        return { success: false, error: 'Valid World Chain wallet address required (0x...)' };
+      }
+
+      if (isNaN(claimAmount) || claimAmount <= 0) {
+        setResponseStatus(event, 400);
+        return { success: false, error: 'Invalid claim amount' };
+      }
+
+      if (claimAmount < 20) {
+        setResponseStatus(event, 400);
+        return { success: false, error: 'Minimum claim amount is 20 $DEF' };
+      }
+
+      if (player.tokens < claimAmount) {
+        setResponseStatus(event, 400);
+        return { 
+          success: false, 
+          error: `Insufficient $DEF balance. You have ${player.tokens} $DEF available.`,
+          availableTokens: player.tokens
+        };
+      }
+
+      player.tokens -= claimAmount;
+      (player as any).claimedTokens = ((player as any).claimedTokens || 0) + claimAmount;
+      player.address = recipientAddress;
+      await savePlayerProfile(player);
+
+      return {
+        success: true,
+        claimedAmount: claimAmount,
+        remainingTokens: player.tokens,
+        totalClaimed: (player as any).claimedTokens,
+        recipientAddress,
+        player,
+        message: `🎉 Claimed ${claimAmount} $DEF to ${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}!`
       };
     }
 

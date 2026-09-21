@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { X, Check, Sparkles, Coins, ShieldCheck } from 'lucide-vue-next';
+import { X, Check, Sparkles, Coins, ShieldCheck, ExternalLink, ArrowUpRight, Wallet } from 'lucide-vue-next';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -9,15 +9,40 @@ const props = defineProps<{
   hasSword: boolean;
   hasBow: boolean;
   isWhiteTheme?: boolean;
+  playerAddress?: string;
 }>();
 
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'buyItem', item: 'sword' | 'bow'): void;
   (e: 'addWld', amount: number): void;
+  (e: 'claim', data: { amount: number; address: string }): void;
 }>();
 
 const isProcessing = ref<string | null>(null);
+const showClaimInput = ref(false);
+const claimAddressInput = ref('');
+
+const handleStartClaim = () => {
+  if (props.playerAddress && props.playerAddress.startsWith('0x')) {
+    claimAddressInput.value = props.playerAddress;
+  }
+  showClaimInput.value = !showClaimInput.value;
+};
+
+const handleConfirmClaim = () => {
+  const targetAddress = claimAddressInput.value.trim() || props.playerAddress || '';
+  if (!targetAddress || !targetAddress.startsWith('0x') || targetAddress.length !== 42) {
+    alert('Please enter a valid World Chain wallet address (0x...)');
+    return;
+  }
+  if (props.userTokens < 20) {
+    alert('Minimum claim is 20 $DEF tokens.');
+    return;
+  }
+  emit('claim', { amount: props.userTokens, address: targetAddress });
+  showClaimInput.value = false;
+};
 
 const handlePurchase = (item: 'sword' | 'bow') => {
   if (item === 'sword' && props.hasSword) return;
@@ -114,6 +139,68 @@ const formatTokens = (val: number) => {
         <div class="flex items-center gap-1 text-amber-500 font-bold">
           <Coins class="w-3.5 h-3.5 text-amber-500 shrink-0" />
           <span>{{ formatTokens(userTokens) }} $DEF</span>
+        </div>
+      </div>
+
+      <!-- DEF Community Rewards & Uniswap Actions Bar -->
+      <div 
+        class="px-4 py-2.5 border-b text-xs flex flex-col gap-2 shrink-0 transition-colors"
+        :class="isWhiteTheme ? 'bg-amber-500/[0.04] border-black/10' : 'bg-amber-500/[0.03] border-white/5'"
+      >
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <span class="font-mono text-[11px] font-bold text-amber-500">Community $DEF Pool</span>
+          </div>
+
+          <div class="flex items-center gap-1.5">
+            <!-- Uniswap Link -->
+            <a 
+              href="https://app.uniswap.org/swap?chain=worldchain&inputCurrency=0x2cFc85d8E48F8EAB294be644d9E25C3030863003&outputCurrency=0xb767B50e80084330Fe2bF5F2C3CA5d6E0b73B6f6" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              class="text-[10px] font-mono font-bold px-2 py-1 rounded-md border flex items-center gap-1 transition-all active:scale-95"
+              :class="isWhiteTheme ? 'bg-white border-black/15 text-zinc-800 hover:bg-black/5' : 'bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10'"
+            >
+              <span>Uniswap</span>
+              <ArrowUpRight class="w-3 h-3 text-pink-500" />
+            </a>
+
+            <!-- Claim to Wallet Button -->
+            <button 
+              @click="handleStartClaim"
+              :disabled="userTokens < 20"
+              class="text-[10px] font-mono font-black px-2.5 py-1 rounded-md border flex items-center gap-1 transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
+              :class="isWhiteTheme 
+                ? 'bg-amber-500 text-black border-amber-600 hover:bg-amber-400' 
+                : 'bg-amber-500/20 text-amber-400 border-amber-500/40 hover:bg-amber-500/30'"
+            >
+              <Wallet class="w-3 h-3" />
+              <span>Claim</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Inline Claim Input Form -->
+        <div v-if="showClaimInput" class="p-2.5 rounded-xl border flex flex-col gap-2 mt-1"
+          :class="isWhiteTheme ? 'bg-white border-black/10' : 'bg-black/60 border-white/10'">
+          <div class="flex items-center justify-between text-[10px] font-mono">
+            <span class="opacity-70">Transfer to World Chain Address:</span>
+            <span class="font-bold text-amber-400">{{ userTokens }} $DEF available</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <input 
+              v-model="claimAddressInput" 
+              placeholder="0x... your wallet address" 
+              class="flex-1 bg-transparent border rounded-lg px-2.5 py-1 text-xs font-mono outline-none focus:border-amber-500"
+              :class="isWhiteTheme ? 'border-black/20 text-black' : 'border-white/20 text-white'"
+            />
+            <button 
+              @click="handleConfirmClaim"
+              class="px-3 py-1 bg-amber-500 text-black font-black rounded-lg text-xs font-mono active:scale-95 transition-all"
+            >
+              Send
+            </button>
+          </div>
         </div>
       </div>
 
