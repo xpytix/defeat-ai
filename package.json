@@ -7,7 +7,7 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare || true"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.9",
@@ -15,14 +15,13 @@
     "@worldcoin/minikit-js": "^1.2.1",
     "autoprefixer": "^10.4.19",
     "lucide-vue-next": "^0.379.0",
+    "nuxt": "^3.11.2",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.3",
     "vue": "^3.4.27",
     "vue-router": "^4.3.2"
   },
   "devDependencies": {
-    "@types/node": "^20.12.12",
-    "nuxt": "^3.11.2",
-    "puppeteer-core": "^24.43.1"
+    "@types/node": "^20.12.12"
   }
 }
