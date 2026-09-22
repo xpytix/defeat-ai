@@ -816,22 +816,7 @@ const formatTokens = (val: number) => {
         />
       </div>
 
-      <!-- Live Combat Ticker: Shows Recent Strikes across all players -->
-      <div 
-        v-if="latestStrike"
-        class="flex items-center justify-between text-[10px] font-mono tracking-tight pt-1 px-1 transition-opacity duration-300"
-        :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'"
-      >
-        <div class="flex items-center gap-1.5 truncate">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
-          <span class="font-bold truncate" :class="isWhiteTheme ? 'text-zinc-900' : 'text-zinc-200'">{{ latestStrike.playerName }}</span>
-          <span class="shrink-0 font-extrabold" :class="latestStrike.type === 'power' ? 'text-amber-400' : 'text-cyan-400'">
-            -{{ latestStrike.damage }} HP
-          </span>
-          <span class="shrink-0 text-zinc-500">({{ latestStrike.weapon || (latestStrike.type === 'power' ? 'Power Strike' : 'Daily Strike') }})</span>
-        </div>
-        <span class="shrink-0 text-[9px] text-zinc-500 ml-2">{{ formatTimeAgo(latestStrike.timestamp) }}</span>
-      </div>
+
     </div>
 
     <!-- WIDER ACTION BUTTONS (ALWAYS VISIBLE ABOVE BOTTOM NAV ON ANY SCREEN) -->
