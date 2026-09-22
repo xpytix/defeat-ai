@@ -495,18 +495,27 @@ const formatTokens = (val: number) => {
           </button>
         </div>
 
-        <!-- Token Balance (Click to Open Armory / Shop) -->
+        <!-- Token Balance & Raid Bounty (Click to Open Armory / Shop) -->
         <div 
           @click="emit('openShop')"
           class="shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full text-amber-500 font-bold shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95 group select-none"
           :class="isWhiteTheme ? 'bg-black/[0.04] border border-black/10 hover:bg-black/[0.08]' : 'bg-white/[0.05] border border-white/10 hover:bg-white/[0.1]'"
-          title="Kliknij, aby otworzyć Cyber Armory (Zbrojownia)"
+          title="Click to open Cyber Armory"
         >
           <Coins class="w-3.5 h-3.5 text-amber-500 group-hover:rotate-12 transition-transform shrink-0" />
           <span class="text-xs font-mono font-black whitespace-nowrap tabular-nums">
-            {{ formatTokens(onChainTokens || userTokens || 0) }}
+            {{ onChainTokens && onChainTokens > 0 ? formatTokens(onChainTokens) : (userTokens || 0) }}
           </span>
           <span class="text-[9px] font-mono font-normal shrink-0" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">$DEF</span>
+
+          <!-- Prominent In-Game Raid Reward Badge -->
+          <span 
+            v-if="userTokens && userTokens > 0 && onChainTokens && onChainTokens > 0"
+            class="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black bg-amber-400/20 text-amber-400 border border-amber-400/40 shadow-sm animate-pulse shrink-0"
+            title="Raid Rewards Earned"
+          >
+            +{{ userTokens }}
+          </span>
         </div>
       </div>
 
@@ -754,7 +763,7 @@ const formatTokens = (val: number) => {
                 class="text-base sm:text-lg font-black font-mono tracking-wide"
                 :class="isWhiteTheme ? 'text-zinc-950' : 'text-white'"
               >
-                +{{ lastRewardBanner.tokens }} $DEF ODEBRANE!
+                +{{ lastRewardBanner.tokens }} $DEF CLAIMED!
               </span>
             </div>
           </div>

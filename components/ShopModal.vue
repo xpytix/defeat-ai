@@ -159,6 +159,37 @@ const formatFullNumber = (val?: number) => {
             </div>
           </div>
 
+          <!-- In-Game Raid Bounty / Rewards Card -->
+          <div 
+            class="p-3.5 rounded-xl border flex items-center justify-between gap-3 shadow-inner"
+            :class="isWhiteTheme 
+              ? 'bg-amber-500/[0.08] border-amber-500/30' 
+              : 'bg-amber-500/[0.08] border-amber-500/25'"
+          >
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                <Sparkles class="w-5 h-5 text-amber-400" />
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-baseline gap-1.5 flex-wrap">
+                  <span class="text-lg sm:text-xl font-mono font-black tracking-tight text-amber-400">
+                    +{{ userTokens || 0 }}
+                  </span>
+                  <span class="text-xs font-mono font-bold text-amber-400/80">$DEF</span>
+                </div>
+                <p class="text-[10px] font-mono text-zinc-400 truncate">
+                  Raid Earnings (Earned from Strikes)
+                </p>
+              </div>
+            </div>
+
+            <div class="text-right shrink-0">
+              <span class="text-[10px] font-mono font-bold px-2 py-1 rounded-md border bg-amber-500/15 border-amber-500/30 text-amber-400">
+                In-Game Vault
+              </span>
+            </div>
+          </div>
+
           <!-- Live On-Chain Balance Display Card -->
           <div 
             class="p-3.5 rounded-xl border flex items-center justify-between gap-3 shadow-inner"
