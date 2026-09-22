@@ -942,7 +942,7 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
         </p>
 
         <p class="text-[10px] font-mono text-amber-400/80 mb-3">
-          Daily limit: 10,000 $DEF / 24h. Remaining balance stays in Cyber Armory.
+          Daily limit: 500 $DEF / 24h. Remaining balance stays in Cyber Armory.
         </p>
 
         <!-- Status message if claiming or success -->

@@ -200,11 +200,11 @@ const formatFullNumber = (val?: number) => {
               <div class="text-right shrink-0">
                 <button
                   v-if="activeWallet && (userTokens || 0) >= 20"
-                  @click="emit('claimTokens', { amount: Math.min(userTokens || 0, 10000), address: activeWallet })"
+                  @click="emit('claimTokens', { amount: Math.min(userTokens || 0, 500), address: activeWallet })"
                   class="px-2.5 py-1.5 rounded-lg bg-amber-500 text-black font-mono font-black text-[10px] tracking-wide uppercase hover:bg-amber-400 active:scale-95 transition-all shadow-md flex items-center gap-1 cursor-pointer"
                   title="Claim tokens on-chain to your World Chain wallet"
                 >
-                  <span>{{ (userTokens || 0) > 10000 ? 'Claim 10,000 $DEF' : 'Claim On-Chain' }}</span>
+                  <span>{{ (userTokens || 0) > 500 ? 'Claim 500 $DEF' : 'Claim On-Chain' }}</span>
                   <ArrowUpRight class="w-3 h-3" />
                 </button>
                 <span v-else-if="(userTokens || 0) >= 20" class="text-[10px] font-mono font-bold px-2 py-1 rounded-md border bg-amber-500/15 border-amber-500/30 text-amber-400">
@@ -219,9 +219,9 @@ const formatFullNumber = (val?: number) => {
             <!-- Daily Limit Info Bar -->
             <div class="pt-2 border-t border-amber-500/15 flex items-center justify-between text-[10px] font-mono">
               <span class="text-amber-400/90 font-bold flex items-center gap-1">
-                <ShieldCheck class="w-3 h-3" /> Daily Limit: 10,000 $DEF / 24h
+                <ShieldCheck class="w-3 h-3" /> Daily Limit: 500 $DEF / 24h
               </span>
-              <span v-if="(userTokens || 0) > 10000" class="text-zinc-400">
+              <span v-if="(userTokens || 0) > 500" class="text-zinc-400">
                 Rest stays in Armory
               </span>
               <span v-else class="text-zinc-500">

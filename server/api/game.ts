@@ -304,8 +304,8 @@ export default defineEventHandler(async (event) => {
         };
       }
 
-      // Maximum daily claim is 10,000 $DEF. Excess tokens remain safe in player's game balance.
-      const MAX_DAILY_CLAIM = 10_000;
+      // Maximum daily claim is 500 $DEF. Excess tokens remain safe in player's game balance.
+      const MAX_DAILY_CLAIM = 500;
       const claimAmount = Math.min(Math.min(requestedAmount, player.tokens), MAX_DAILY_CLAIM);
 
       if (claimAmount < 20) {
@@ -359,7 +359,7 @@ export default defineEventHandler(async (event) => {
         totalClaimed: (player as any).claimedTokens,
         recipientAddress,
         player,
-        message: `🎉 Generated on-chain claim voucher for ${claimAmount} $DEF (Daily Limit: 10,000 $DEF)!`
+        message: `🎉 Generated on-chain claim voucher for ${claimAmount} $DEF (Daily Limit: 500 $DEF)!`
       };
     }
 
