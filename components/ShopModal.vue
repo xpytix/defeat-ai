@@ -174,43 +174,58 @@ const formatFullNumber = (val?: number) => {
 
           <!-- In-Game Raid Bounty / Rewards Card -->
           <div 
-            class="p-3.5 rounded-xl border flex items-center justify-between gap-3 shadow-inner"
+            class="p-3.5 rounded-xl border flex flex-col gap-2.5 shadow-inner"
             :class="isWhiteTheme 
               ? 'bg-amber-500/[0.08] border-amber-500/30' 
               : 'bg-amber-500/[0.08] border-amber-500/25'"
           >
-            <div class="flex items-center gap-2.5 min-w-0">
-              <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-                <Sparkles class="w-5 h-5 text-amber-400" />
-              </div>
-              <div class="min-w-0">
-                <div class="flex items-baseline gap-1.5 flex-wrap">
-                  <span class="text-lg sm:text-xl font-mono font-black tracking-tight text-amber-400">
-                    +{{ userTokens || 0 }}
-                  </span>
-                  <span class="text-xs font-mono font-bold text-amber-400/80">$DEF</span>
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <Sparkles class="w-5 h-5 text-amber-400" />
                 </div>
-                <p class="text-[10px] font-mono text-zinc-400 truncate">
-                  Raid Earnings (Earned from Strikes)
-                </p>
+                <div class="min-w-0">
+                  <div class="flex items-baseline gap-1.5 flex-wrap">
+                    <span class="text-lg sm:text-xl font-mono font-black tracking-tight text-amber-400">
+                      +{{ userTokens || 0 }}
+                    </span>
+                    <span class="text-xs font-mono font-bold text-amber-400/80">$DEF</span>
+                  </div>
+                  <p class="text-[10px] font-mono text-zinc-400 truncate">
+                    Raid Earnings (Unclaimed)
+                  </p>
+                </div>
+              </div>
+
+              <div class="text-right shrink-0">
+                <button
+                  v-if="activeWallet && (userTokens || 0) >= 20"
+                  @click="emit('claimTokens', { amount: Math.min(userTokens || 0, 10000), address: activeWallet })"
+                  class="px-2.5 py-1.5 rounded-lg bg-amber-500 text-black font-mono font-black text-[10px] tracking-wide uppercase hover:bg-amber-400 active:scale-95 transition-all shadow-md flex items-center gap-1 cursor-pointer"
+                  title="Claim tokens on-chain to your World Chain wallet"
+                >
+                  <span>{{ (userTokens || 0) > 10000 ? 'Claim 10,000 $DEF' : 'Claim On-Chain' }}</span>
+                  <ArrowUpRight class="w-3 h-3" />
+                </button>
+                <span v-else-if="(userTokens || 0) >= 20" class="text-[10px] font-mono font-bold px-2 py-1 rounded-md border bg-amber-500/15 border-amber-500/30 text-amber-400">
+                  Connect Wallet
+                </span>
+                <span v-else class="text-[10px] font-mono font-bold px-2 py-1 rounded-md border bg-zinc-800/40 border-white/10 text-zinc-400">
+                  Min 20 $DEF
+                </span>
               </div>
             </div>
 
-            <div class="text-right shrink-0">
-              <button
-                v-if="activeWallet && (userTokens || 0) >= 20"
-                @click="emit('claimTokens', { amount: userTokens || 0, address: activeWallet })"
-                class="px-2.5 py-1.5 rounded-lg bg-amber-500 text-black font-mono font-black text-[10px] tracking-wide uppercase hover:bg-amber-400 active:scale-95 transition-all shadow-md flex items-center gap-1 cursor-pointer"
-                title="Claim tokens on-chain to your World Chain wallet"
-              >
-                <span>Claim On-Chain</span>
-                <ArrowUpRight class="w-3 h-3" />
-              </button>
-              <span v-else-if="(userTokens || 0) >= 20" class="text-[10px] font-mono font-bold px-2 py-1 rounded-md border bg-amber-500/15 border-amber-500/30 text-amber-400">
-                Connect Wallet
+            <!-- Daily Limit Info Bar -->
+            <div class="pt-2 border-t border-amber-500/15 flex items-center justify-between text-[10px] font-mono">
+              <span class="text-amber-400/90 font-bold flex items-center gap-1">
+                <ShieldCheck class="w-3 h-3" /> Daily Limit: 10,000 $DEF / 24h
               </span>
-              <span v-else class="text-[10px] font-mono font-bold px-2 py-1 rounded-md border bg-zinc-800/40 border-white/10 text-zinc-400">
-                Min 20 $DEF
+              <span v-if="(userTokens || 0) > 10000" class="text-zinc-400">
+                Rest stays in Armory
+              </span>
+              <span v-else class="text-zinc-500">
+                1-click gas-free claim
               </span>
             </div>
           </div>

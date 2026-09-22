@@ -283,30 +283,34 @@ export default defineEventHandler(async (event) => {
 
     if (action === 'claim') {
       const { recipientAddress, amount } = body || {};
-      const claimAmount = Math.floor(Number(amount));
+      const requestedAmount = Math.floor(Number(amount));
 
       if (!recipientAddress || typeof recipientAddress !== 'string' || !recipientAddress.startsWith('0x') || recipientAddress.length !== 42) {
         setResponseStatus(event, 400);
         return { success: false, error: 'Valid World Chain wallet address required (0x...)' };
       }
 
-      if (isNaN(claimAmount) || claimAmount <= 0) {
+      if (isNaN(requestedAmount) || requestedAmount <= 0) {
         setResponseStatus(event, 400);
         return { success: false, error: 'Invalid claim amount' };
       }
 
-      if (claimAmount < 20) {
-        setResponseStatus(event, 400);
-        return { success: false, error: 'Minimum claim amount is 20 $DEF' };
-      }
-
-      if (player.tokens < claimAmount) {
+      if (player.tokens < 20) {
         setResponseStatus(event, 400);
         return { 
           success: false, 
-          error: `Insufficient $DEF balance. You have ${player.tokens} $DEF available.`,
+          error: `Minimum claim amount is 20 $DEF. You have ${player.tokens} $DEF available.`,
           availableTokens: player.tokens
         };
+      }
+
+      // Maximum daily claim is 10,000 $DEF. Excess tokens remain safe in player's game balance.
+      const MAX_DAILY_CLAIM = 10_000;
+      const claimAmount = Math.min(Math.min(requestedAmount, player.tokens), MAX_DAILY_CLAIM);
+
+      if (claimAmount < 20) {
+        setResponseStatus(event, 400);
+        return { success: false, error: 'Minimum claim amount is 20 $DEF' };
       }
 
       // 1. Attempt direct on-chain transfer from DefeatAiDistributor
@@ -342,7 +346,7 @@ export default defineEventHandler(async (event) => {
         };
       }
 
-      player.tokens -= claimAmount;
+      player.tokens = Math.max(0, player.tokens - claimAmount);
       (player as any).claimedTokens = ((player as any).claimedTokens || 0) + claimAmount;
       player.address = recipientAddress;
       await savePlayerProfile(player);
@@ -355,7 +359,7 @@ export default defineEventHandler(async (event) => {
         totalClaimed: (player as any).claimedTokens,
         recipientAddress,
         player,
-        message: `🎉 Generated on-chain claim voucher for ${claimAmount} $DEF!`
+        message: `🎉 Generated on-chain claim voucher for ${claimAmount} $DEF (Daily Limit: 10,000 $DEF)!`
       };
     }
 

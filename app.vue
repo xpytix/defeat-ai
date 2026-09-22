@@ -763,6 +763,7 @@ const executeOnChainClaim = async (voucher: any) => {
 
 const handleClaimTokens = async (claimData: { amount: number; address: string }) => {
   try {
+    isShopOpen.value = false; // Close shop modal so reward modal is fully visible
     showToast('⏳ Generating $DEF on-chain claim voucher...');
     const res: any = await $fetch('/api/game', {
       method: 'POST',
@@ -936,8 +937,12 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
           <span class="text-sm font-bold font-mono text-amber-500">$DEF</span>
         </div>
 
-        <p class="text-xs font-mono opacity-70 mb-3 leading-relaxed">
+        <p class="text-xs font-mono opacity-70 mb-1 leading-relaxed">
           Official on-chain voucher signed. Gas sponsored by World App ($0.00 fee).
+        </p>
+
+        <p class="text-[10px] font-mono text-amber-400/80 mb-3">
+          Daily limit: 10,000 $DEF / 24h. Remaining balance stays in Cyber Armory.
         </p>
 
         <!-- Status message if claiming or success -->

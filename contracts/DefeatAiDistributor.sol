@@ -17,7 +17,7 @@ contract DefeatAiDistributor {
     bool public paused;
 
     uint256 public constant DAILY_WINDOW = 1 days;
-    uint256 public playerDailyLimit = 500 * 10**18;        // 500 DEF na gracza / 24h
+    uint256 public playerDailyLimit = 10_000 * 10**18;     // 10 000 DEF na gracza / 24h
     uint256 public globalDailyLimit = 100_000 * 10**18;    // 100 000 DEF globalnie / 24h
 
     mapping(address => mapping(uint256 => uint256)) public playerClaimedInDay;
