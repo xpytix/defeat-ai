@@ -40,9 +40,10 @@ export default defineEventHandler(async (event) => {
       await savePlayerProfile(player);
     }
 
+    const effectiveNullifier = nullifierHash || player.nullifierHash;
     let humanCooldownRemainingMs = 0;
-    if (nullifierHash) {
-      const lastStrike = await getHumanLastStrike(nullifierHash);
+    if (effectiveNullifier) {
+      const lastStrike = await getHumanLastStrike(effectiveNullifier);
       const cooldownHours = player.hasBow ? 12 : 24;
       const cooldownMs = cooldownHours * 60 * 60 * 1000;
       const elapsed = Date.now() - lastStrike;

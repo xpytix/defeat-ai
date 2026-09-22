@@ -19,6 +19,40 @@ const activeTab = ref<'boss' | 'characters'>('boss');
 const toastMessage = ref<string | null>(null);
 const bossViewRef = ref<any>(null);
 
+// Dual Persistent Storage Helper (localStorage + Cookie Fallback for Webview Reliability)
+const getPersisted = (key: string): string | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const val = localStorage.getItem(key);
+    if (val) return val;
+  } catch (e) {}
+  try {
+    const match = document.cookie.match(new RegExp('(^|;\\s*)' + key + '=([^;]*)'));
+    if (match) return decodeURIComponent(match[2]);
+  } catch (e) {}
+  return null;
+};
+
+const setPersisted = (key: string, val: string) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, val);
+  } catch (e) {}
+  try {
+    document.cookie = `${key}=${encodeURIComponent(val)};path=/;max-age=31536000;SameSite=Lax`;
+  } catch (e) {}
+};
+
+const removePersisted = (key: string) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(key);
+  } catch (e) {}
+  try {
+    document.cookie = `${key}=;path=/;max-age=0;SameSite=Lax`;
+  } catch (e) {}
+};
+
 // User Player ID & World ID Identity
 const playerId = ref('human-stryker');
 const verifiedNullifier = ref<string | null>(null);
@@ -40,15 +74,15 @@ const hasSword = ref(false); // Quantum Plasma Blade: 2x daily strike damage (-2
 const hasBow = ref(false);   // Tachyon Chrono-Bow: -50% cooldown (12h instead of 24h)
 const isShopOpen = ref(false);
 
-// Game State (Starts pristine at Level 1 AutoCorrect 50/50 HP)
+// Game State (Starts pre-warmed at Level 1 AutoCorrect, seamlessly matching live state)
 const currentBossLevel = ref(1);
 const maxHp = ref(50);
-const currentHp = ref(50);
+const currentHp = ref(49);
 const bossName = ref('AutoCorrect');
-const totalStrikes = ref(0);
-const totalViews = ref(0);
-const uniqueHumans = ref(0);
-const freeHitAvailable = ref(true);
+const totalStrikes = ref(1);
+const totalViews = ref(3);
+const uniqueHumans = ref(1);
+const freeHitAvailable = ref(false); // Default to checking cooldown first to prevent button flash
 const nextFreeHitTime = ref<number | null>(null);
 const isSyncing = ref(false);
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -96,6 +130,11 @@ const fetchRaidState = async (isView = false) => {
       totalViews.value = res.raid.totalViews || 0;
       uniqueHumans.value = Object.keys(res.raid.contributors || {}).length;
       recentStrikes.value = res.raid.recentStrikes || [];
+
+      setPersisted('defeat_ai_cached_hp', String(res.raid.currentHp));
+      setPersisted('defeat_ai_cached_strikes', String(res.raid.totalStrikes || 0));
+      setPersisted('defeat_ai_cached_views', String(res.raid.totalViews || 0));
+      setPersisted('defeat_ai_cached_boss_name', res.raid.bossName);
     }
 
     if (res && res.player) {
@@ -104,22 +143,29 @@ const fetchRaidState = async (isView = false) => {
       hasSword.value = res.player.hasSword;
       hasBow.value = res.player.hasBow;
 
+      if (res.player.nullifierHash && !verifiedNullifier.value) {
+        verifiedNullifier.value = res.player.nullifierHash;
+        setPersisted('defeat_ai_nullifier', res.player.nullifierHash);
+      }
+
       // Handle server-enforced cooldown based on nullifier hash & player state
       if (res.humanCooldownRemainingMs && res.humanCooldownRemainingMs > 0) {
         freeHitAvailable.value = false;
-        nextFreeHitTime.value = Date.now() + res.humanCooldownRemainingMs;
+        const targetExpiry = Date.now() + res.humanCooldownRemainingMs;
+        nextFreeHitTime.value = targetExpiry;
+        setPersisted('defeat_ai_next_free_hit', String(targetExpiry));
       } else if (res.player.lastFreeHitTime && (Date.now() - res.player.lastFreeHitTime < (res.player.hasBow ? 12 : 24) * 3600000)) {
         const cooldownHours = res.player.hasBow ? 12 : 24;
         const cooldown = cooldownHours * 60 * 60 * 1000;
         const expiry = res.player.lastFreeHitTime + cooldown;
         freeHitAvailable.value = false;
         nextFreeHitTime.value = expiry;
+        setPersisted('defeat_ai_next_free_hit', String(expiry));
       } else {
         freeHitAvailable.value = true;
         nextFreeHitTime.value = null;
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('defeat_ai_last_free_hit');
-        }
+        removePersisted('defeat_ai_last_free_hit');
+        removePersisted('defeat_ai_next_free_hit');
       }
     }
   } catch (err) {
@@ -142,9 +188,7 @@ const fetchOnChainBalance = async (addressOverride?: string) => {
 
     if (res && res.success) {
       onChainTokens.value = res.balance;
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('defeat_ai_onchain_tokens', res.balance.toString());
-      }
+      setPersisted('defeat_ai_onchain_tokens', res.balance.toString());
     }
   } catch (err) {
     console.warn('[DEF Balance] Failed to fetch on-chain DEF balance:', err);
@@ -186,10 +230,8 @@ const handleSetWalletAddress = (addr: string) => {
   if (!addr || !addr.startsWith('0x') || addr.length !== 42) return;
   walletAddress.value = addr;
   playerId.value = addr;
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('defeat_ai_wallet_address', addr);
-    localStorage.setItem('defeat_ai_player_id', addr);
-  }
+  setPersisted('defeat_ai_wallet_address', addr);
+  setPersisted('defeat_ai_player_id', addr);
   showToast(`Address set: ${addr.slice(0, 6)}...${addr.slice(-4)}`);
   fetchOnChainBalance(addr);
 };
@@ -209,7 +251,7 @@ onMounted(() => {
     }
 
     // 2. Persistent Wallet Address & Player Identity
-    const savedWallet = localStorage.getItem('defeat_ai_wallet_address');
+    const savedWallet = getPersisted('defeat_ai_wallet_address');
     if (savedWallet && savedWallet.startsWith('0x')) {
       walletAddress.value = savedWallet;
     } else if (!walletAddress.value) {
@@ -217,33 +259,52 @@ onMounted(() => {
       walletAddress.value = TREASURY_WALLET;
     }
 
-    let storedId = localStorage.getItem('defeat_ai_player_id');
+    let storedId = getPersisted('defeat_ai_player_id');
     if (!storedId) {
       storedId = walletAddress.value || ('human-' + Math.random().toString(36).substring(2, 9));
-      localStorage.setItem('defeat_ai_player_id', storedId);
+      setPersisted('defeat_ai_player_id', storedId);
     }
     playerId.value = storedId;
 
-    const savedNullifier = localStorage.getItem('defeat_ai_nullifier');
+    const savedNullifier = getPersisted('defeat_ai_nullifier');
     if (savedNullifier) verifiedNullifier.value = savedNullifier;
 
-    const savedOnChain = localStorage.getItem('defeat_ai_onchain_tokens');
+    const savedOnChain = getPersisted('defeat_ai_onchain_tokens');
     if (savedOnChain) onChainTokens.value = parseFloat(savedOnChain);
 
-    const savedTokens = localStorage.getItem('defeat_ai_user_tokens');
+    const savedTokens = getPersisted('defeat_ai_user_tokens');
     if (savedTokens) {
       userTokens.value = parseInt(savedTokens, 10);
       unclaimedTokens.value = parseInt(savedTokens, 10);
     }
 
-    const savedSword = localStorage.getItem('defeat_ai_has_sword');
+    const savedSword = getPersisted('defeat_ai_has_sword');
     if (savedSword) hasSword.value = savedSword === 'true';
 
-    const savedBow = localStorage.getItem('defeat_ai_has_bow');
+    const savedBow = getPersisted('defeat_ai_has_bow');
     if (savedBow) hasBow.value = savedBow === 'true';
 
-    const savedLastHit = localStorage.getItem('defeat_ai_last_free_hit');
-    if (savedLastHit) {
+    // Pre-warm cached HP and strikes immediately
+    const cachedHp = getPersisted('defeat_ai_cached_hp');
+    if (cachedHp) currentHp.value = parseInt(cachedHp, 10);
+
+    const cachedStrikes = getPersisted('defeat_ai_cached_strikes');
+    if (cachedStrikes) totalStrikes.value = parseInt(cachedStrikes, 10);
+
+    const cachedViews = getPersisted('defeat_ai_cached_views');
+    if (cachedViews) totalViews.value = parseInt(cachedViews, 10);
+
+    const savedNextHit = getPersisted('defeat_ai_next_free_hit');
+    const savedLastHit = getPersisted('defeat_ai_last_free_hit');
+    if (savedNextHit) {
+      const nextTime = parseInt(savedNextHit, 10);
+      if (Date.now() < nextTime) {
+        freeHitAvailable.value = false;
+        nextFreeHitTime.value = nextTime;
+      } else {
+        freeHitAvailable.value = true;
+      }
+    } else if (savedLastHit) {
       const lastHitTime = parseInt(savedLastHit, 10);
       const cooldownHours = hasBow.value ? 12 : 24;
       const cooldown = cooldownHours * 60 * 60 * 1000;
@@ -251,7 +312,12 @@ onMounted(() => {
       if (Date.now() < expiry) {
         freeHitAvailable.value = false;
         nextFreeHitTime.value = expiry;
+      } else {
+        freeHitAvailable.value = true;
       }
+    } else {
+      // If no cooldown stored, permit strike
+      freeHitAvailable.value = true;
     }
 
     // 3. Connect to Netlify Blobs Backend & World Chain RPC
@@ -308,9 +374,7 @@ const handleHit = async (type: 'free' | 'power') => {
         proofPayload = verifyResponse.finalPayload;
         if (proofPayload.nullifier_hash) {
           verifiedNullifier.value = proofPayload.nullifier_hash;
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('defeat_ai_nullifier', proofPayload.nullifier_hash);
-          }
+          setPersisted('defeat_ai_nullifier', proofPayload.nullifier_hash);
         }
       } catch (err: any) {
         isVerifying.value = false;
@@ -351,7 +415,8 @@ const handleHit = async (type: 'free' | 'power') => {
 
       if (res && res.success) {
         freeHitAvailable.value = false;
-        nextFreeHitTime.value = res.nextFreeHitTime || (Date.now() + cooldownMs);
+        const targetExpiry = res.nextFreeHitTime || (Date.now() + cooldownMs);
+        nextFreeHitTime.value = targetExpiry;
         if (res.player) {
           userTokens.value = res.player.tokens;
           unclaimedTokens.value = res.player.tokens;
@@ -366,9 +431,13 @@ const handleHit = async (type: 'free' | 'power') => {
           recentStrikes.value = res.raid.recentStrikes || [];
         }
 
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('defeat_ai_last_free_hit', Date.now().toString());
-          localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
+        setPersisted('defeat_ai_last_free_hit', Date.now().toString());
+        setPersisted('defeat_ai_next_free_hit', String(targetExpiry));
+        setPersisted('defeat_ai_user_tokens', userTokens.value.toString());
+        setPersisted('defeat_ai_cached_hp', String(currentHp.value));
+        setPersisted('defeat_ai_cached_strikes', String(totalStrikes.value));
+        if (res.nullifierHash) {
+          setPersisted('defeat_ai_nullifier', res.nullifierHash);
         }
 
         const dmg = hasSword.value ? 2 : 1;
@@ -471,9 +540,7 @@ const handleHit = async (type: 'free' | 'power') => {
           recentStrikes.value = res.raid.recentStrikes || [];
         }
 
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
-        }
+        setPersisted('defeat_ai_user_tokens', userTokens.value.toString());
 
         const dmg = res.damage || (hasSword.value ? 4 : 2);
         const tokens = res.tokensEarned || (hasSword.value ? 40 : 20);
@@ -538,10 +605,8 @@ const handleBuyItem = async (item: 'sword' | 'bow') => {
     }
   }
 
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('defeat_ai_has_sword', hasSword.value.toString());
-    localStorage.setItem('defeat_ai_has_bow', hasBow.value.toString());
-  }
+  setPersisted('defeat_ai_has_sword', hasSword.value.toString());
+  setPersisted('defeat_ai_has_bow', hasBow.value.toString());
 
   // Sync with Netlify Blobs
   $fetch('/api/game', {
@@ -571,9 +636,7 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
     if (res && res.success) {
       userTokens.value = res.remainingTokens;
       unclaimedTokens.value = res.remainingTokens;
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
-      }
+      setPersisted('defeat_ai_user_tokens', userTokens.value.toString());
       showToast(res.message || `🎉 Successfully claimed ${claimData.amount} $DEF!`);
       // Immediately refresh on-chain balance to reflect transfer
       await fetchOnChainBalance(claimData.address);

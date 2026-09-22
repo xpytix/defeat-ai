@@ -202,26 +202,46 @@ export async function recordHumanStrike(nullifierHash: string, timestamp: number
 }
 
 export async function getPlayerProfile(playerId: string, nullifierHash?: string): Promise<PlayerProfile> {
-  const key = nullifierHash ? `human_player_${nullifierHash}` : `player_${playerId}`;
   const store = getBlobsStore();
 
-  if (store) {
-    try {
-      const data = await store.get(key, { type: 'json' }) as PlayerProfile | null;
-      if (data) {
-        memoryPlayers.set(key, data);
-        return data;
+  // 1. Try nullifierHash first
+  if (nullifierHash) {
+    const key = `human_player_${nullifierHash}`;
+    if (store) {
+      try {
+        const data = await store.get(key, { type: 'json' }) as PlayerProfile | null;
+        if (data) {
+          memoryPlayers.set(key, data);
+          return data;
+        }
+      } catch (err) {
+        console.warn(`[DB] Error reading player ${key} from blobs:`, err);
       }
-    } catch (err) {
-      console.warn(`[DB] Error reading player ${key} from blobs:`, err);
+    }
+    if (memoryPlayers.has(key)) {
+      return memoryPlayers.get(key)!;
     }
   }
 
-  if (memoryPlayers.has(key)) {
-    return memoryPlayers.get(key)!;
+  // 2. Try playerId
+  const playerKey = `player_${playerId}`;
+  if (store) {
+    try {
+      const data = await store.get(playerKey, { type: 'json' }) as PlayerProfile | null;
+      if (data) {
+        memoryPlayers.set(playerKey, data);
+        return data;
+      }
+    } catch (err) {
+      console.warn(`[DB] Error reading player ${playerKey} from blobs:`, err);
+    }
   }
 
-  // Clean fresh player starts with 0 $DEF and standard initial WLD
+  if (memoryPlayers.has(playerKey)) {
+    return memoryPlayers.get(playerKey)!;
+  }
+
+  // 3. Clean fresh player
   const newPlayer: PlayerProfile = {
     id: playerId,
     nullifierHash,
@@ -233,19 +253,28 @@ export async function getPlayerProfile(playerId: string, nullifierHash?: string)
     totalStrikes: 0
   };
 
-  memoryPlayers.set(key, newPlayer);
+  memoryPlayers.set(playerKey, newPlayer);
+  if (nullifierHash) {
+    memoryPlayers.set(`human_player_${nullifierHash}`, newPlayer);
+  }
   return newPlayer;
 }
 
 export async function savePlayerProfile(profile: PlayerProfile): Promise<void> {
-  const key = profile.nullifierHash ? `human_player_${profile.nullifierHash}` : `player_${profile.id}`;
-  memoryPlayers.set(key, profile);
   const store = getBlobsStore();
-  if (store) {
-    try {
-      await store.setJSON(key, profile);
-    } catch (err) {
-      console.error(`[DB] Failed to save player profile ${key} in blobs:`, err);
+  const keys = [`player_${profile.id}`];
+  if (profile.nullifierHash) {
+    keys.push(`human_player_${profile.nullifierHash}`);
+  }
+
+  for (const key of keys) {
+    memoryPlayers.set(key, profile);
+    if (store) {
+      try {
+        await store.setJSON(key, profile);
+      } catch (err) {
+        console.error(`[DB] Failed to save player profile ${key} in blobs:`, err);
+      }
     }
   }
 }
