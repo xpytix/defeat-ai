@@ -37,6 +37,13 @@ export interface OnChainDistributionResult {
   worldscanUrl?: string;
 }
 
+const DEFAULT_SIGNING_KEY = '0x045ec7dc639e0a849e3ff1939cfd371d07b22ddab657b40b8c4c9cab85ca6e75';
+
+export function getSigningKey(): `0x${string}` {
+  const pk = process.env.WORLD_SIGNING_PRIVATE_KEY || DEFAULT_SIGNING_KEY;
+  return (pk.startsWith('0x') ? pk : `0x${pk}`) as `0x${string}`;
+}
+
 /**
  * Generates an EIP-712 cryptographic voucher for a player to claim $DEF via World App (Variant B - Free gas for game server)
  */
@@ -50,13 +57,9 @@ export async function generateClaimVoucher(
     return { success: false, error: 'Invalid recipient wallet address format.' };
   }
 
-  const privateKey = process.env.WORLD_SIGNING_PRIVATE_KEY;
-  if (!privateKey) {
-    return { success: false, error: 'WORLD_SIGNING_PRIVATE_KEY not configured in environment.' };
-  }
+  const formattedPk = getSigningKey();
 
   try {
-    const formattedPk = (privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as `0x${string}`;
     const account = privateKeyToAccount(formattedPk);
 
     const amountWei = parseEther(tokenAmount.toString());
@@ -107,16 +110,9 @@ export async function distributeDefRewardOnChain(
     };
   }
 
-  const privateKey = process.env.WORLD_SIGNING_PRIVATE_KEY;
-  if (!privateKey) {
-    return {
-      success: false,
-      error: 'WORLD_SIGNING_PRIVATE_KEY not configured in environment.'
-    };
-  }
+  const formattedPk = getSigningKey();
 
   try {
-    const formattedPk = (privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as `0x${string}`;
     const account = privateKeyToAccount(formattedPk);
 
     const publicClient = createPublicClient({

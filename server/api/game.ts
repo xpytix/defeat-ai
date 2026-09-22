@@ -236,15 +236,28 @@ export default defineEventHandler(async (event) => {
       player.totalDamageDealt += damage;
       player.totalStrikes += 1;
 
-      // Generate EIP-712 claim voucher (Variant B - Free gas via World App Paymaster)
+      // Target recipient wallet address
       let voucher: any = null;
       let onChainPayout: any = null;
-      const targetAddress = walletAddress || player.address || (playerId.startsWith('0x') ? playerId : undefined);
+      const targetAddress = walletAddress || (paymentPayload && paymentPayload.from) || player.address || (playerId.startsWith('0x') ? playerId : undefined);
+      
       if (targetAddress && targetAddress.startsWith('0x') && targetAddress.length === 42) {
-        (player as any).claimNonce = ((player as any).claimNonce || 0) + 1;
-        const vResult = await generateClaimVoucher(targetAddress, tokensEarned, (player as any).claimNonce);
-        if (vResult.success) {
-          voucher = vResult.voucher;
+        player.address = targetAddress;
+
+        // 1. Attempt direct on-chain payout (Transfers real $DEF immediately to wallet!)
+        const payout = await distributeDefRewardOnChain(targetAddress, tokensEarned);
+        if (payout.success) {
+          onChainPayout = payout;
+          (player as any).claimedTokens = ((player as any).claimedTokens || 0) + tokensEarned;
+          console.log(`[Strike Payout] Direct transfer of ${tokensEarned} $DEF to ${targetAddress} confirmed: ${payout.txHash}`);
+        } else {
+          console.warn(`[Strike Payout] Direct payout not executed (${payout.error}), falling back to EIP-712 voucher.`);
+          // 2. Fallback: generate cryptographic voucher for claim
+          (player as any).claimNonce = ((player as any).claimNonce || 0) + 1;
+          const vResult = await generateClaimVoucher(targetAddress, tokensEarned, (player as any).claimNonce);
+          if (vResult.success) {
+            voucher = vResult.voucher;
+          }
         }
       }
 
@@ -296,14 +309,36 @@ export default defineEventHandler(async (event) => {
         };
       }
 
-      // Generate EIP-712 claim voucher for player to claim via World App (Variant B)
+      // 1. Attempt direct on-chain transfer from DefeatAiDistributor
+      const payout = await distributeDefRewardOnChain(recipientAddress, claimAmount);
+      if (payout.success) {
+        player.tokens = Math.max(0, player.tokens - claimAmount);
+        (player as any).claimedTokens = ((player as any).claimedTokens || 0) + claimAmount;
+        player.address = recipientAddress;
+        await savePlayerProfile(player);
+
+        return {
+          success: true,
+          directTransfer: true,
+          txHash: payout.txHash,
+          worldscanUrl: payout.worldscanUrl,
+          claimedAmount: claimAmount,
+          remainingTokens: player.tokens,
+          totalClaimed: (player as any).claimedTokens,
+          recipientAddress,
+          player,
+          message: `🎉 Transferred ${claimAmount} $DEF on-chain to ${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}!`
+        };
+      }
+
+      // 2. Fallback: Generate EIP-712 claim voucher for player to claim via World App
       (player as any).claimNonce = ((player as any).claimNonce || 0) + 1;
       const vResult = await generateClaimVoucher(recipientAddress, claimAmount, (player as any).claimNonce);
       if (!vResult.success || !vResult.voucher) {
         setResponseStatus(event, 500);
         return {
           success: false,
-          error: `Failed to generate claim voucher: ${vResult.error}`
+          error: `Failed to process claim: ${payout.error || vResult.error}`
         };
       }
 

@@ -252,19 +252,25 @@ onMounted(() => {
 
     // 2. Persistent Wallet Address & Player Identity
     const savedWallet = getPersisted('defeat_ai_wallet_address');
-    if (savedWallet && savedWallet.startsWith('0x')) {
+    if (savedWallet && savedWallet.startsWith('0x') && savedWallet.toLowerCase() !== TREASURY_WALLET.toLowerCase()) {
       walletAddress.value = savedWallet;
-    } else if (!walletAddress.value) {
-      // Default to founder / user's personal wallet so Szymon immediately sees his 30M DEF on first test
-      walletAddress.value = TREASURY_WALLET;
+    } else {
+      walletAddress.value = '';
     }
 
     let storedId = getPersisted('defeat_ai_player_id');
-    if (!storedId) {
+    if (!storedId || storedId.toLowerCase() === TREASURY_WALLET.toLowerCase()) {
       storedId = walletAddress.value || ('human-' + Math.random().toString(36).substring(2, 9));
       setPersisted('defeat_ai_player_id', storedId);
     }
     playerId.value = storedId;
+
+    // Auto connect inside World App if address is not set yet
+    if (isInsideWorldApp.value && !walletAddress.value) {
+      setTimeout(() => {
+        handleConnectWallet();
+      }, 500);
+    }
 
     const savedNullifier = getPersisted('defeat_ai_nullifier');
     if (savedNullifier) verifiedNullifier.value = savedNullifier;
@@ -445,7 +451,10 @@ const handleHit = async (type: 'free' | 'power') => {
         const tokens = hasSword.value ? 40 : 20;
         bossViewRef.value?.playAttackAnimation('free', dmg, tokens);
 
-        if (res.voucher && isInsideWorldApp.value) {
+        if (res.onChainPayout?.success) {
+          showToast(`🎉 On-Chain: +${tokens} $DEF sent to your wallet!`);
+          if (walletAddress.value) fetchOnChainBalance(walletAddress.value);
+        } else if (res.voucher && isInsideWorldApp.value) {
           executeOnChainClaim(res.voucher);
         } else if (res.bossDefeated) {
           showToast('🎉 Boss annihilated! Sector advanced!');
@@ -497,6 +506,10 @@ const handleHit = async (type: 'free' | 'power') => {
           return;
         }
         paymentPayload = payload;
+
+        if (payload?.from && payload.from.startsWith('0x')) {
+          handleSetWalletAddress(payload.from);
+        }
       } catch (err: any) {
         isPowerStriking.value = false;
         showToast(`Payment error: ${err.message || 'Unknown'}`);
@@ -550,7 +563,10 @@ const handleHit = async (type: 'free' | 'power') => {
         const tokens = res.tokensEarned || (hasSword.value ? 40 : 20);
         bossViewRef.value?.playAttackAnimation('power', dmg, tokens);
 
-        if (res.voucher && isInsideWorldApp.value) {
+        if (res.onChainPayout?.success) {
+          showToast(`🎉 Power Strike! +${tokens} $DEF sent to your wallet!`);
+          if (walletAddress.value) fetchOnChainBalance(walletAddress.value);
+        } else if (res.voucher && isInsideWorldApp.value) {
           executeOnChainClaim(res.voucher);
         } else if (res.bossDefeated) {
           showToast('🎉 Boss annihilated! Sector advanced!');
@@ -688,7 +704,7 @@ const executeOnChainClaim = async (voucher: any) => {
 
 const handleClaimTokens = async (claimData: { amount: number; address: string }) => {
   try {
-    showToast('⏳ Generating $DEF on-chain claim voucher...');
+    showToast('⏳ Processing on-chain $DEF claim...');
     const res: any = await $fetch('/api/game', {
       method: 'POST',
       body: {
@@ -699,11 +715,16 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
       }
     });
 
-    if (res && res.success && res.voucher) {
+    if (res && res.success) {
       userTokens.value = res.remainingTokens;
       unclaimedTokens.value = res.remainingTokens;
       setPersisted('defeat_ai_user_tokens', userTokens.value.toString());
-      await executeOnChainClaim(res.voucher);
+      if (res.directTransfer) {
+        showToast(res.message || `🎉 Successfully transferred ${claimData.amount} $DEF on-chain!`);
+        await fetchOnChainBalance(claimData.address);
+      } else if (res.voucher) {
+        await executeOnChainClaim(res.voucher);
+      }
     }
   } catch (err: any) {
     const errData = err.data || {};
