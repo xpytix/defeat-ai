@@ -5,6 +5,7 @@ import BossView from '~/components/BossView.vue';
 import CharactersView from '~/components/CharactersView.vue';
 import BottomNav from '~/components/BottomNav.vue';
 import ShopModal from '~/components/ShopModal.vue';
+import HumanAuthGate from '~/components/HumanAuthGate.vue';
 import { Sparkles, Check, ArrowUpRight, X } from 'lucide-vue-next';
 
 // App & Treasury Configuration
@@ -60,6 +61,16 @@ const verifiedNullifier = ref<string | null>(null);
 const isInsideWorldApp = ref(false);
 const showWorldAppModal = ref(false);
 const isVerifying = ref(false);
+
+// Human Authentication & Gate State
+const isAuthenticated = ref(false);
+
+const handleGateAuthenticated = (addr: string) => {
+  if (!addr || !addr.startsWith('0x') || addr.length !== 42) return;
+  handleSetWalletAddress(addr);
+  isAuthenticated.value = true;
+  showToast(`👁️ Verified Human authenticated!`);
+};
 
 // Direct Reward Claim Modal State (Variant B: EIP-712 Voucher Claim)
 const showRewardClaimModal = ref(false);
@@ -238,10 +249,21 @@ const handleSetWalletAddress = (addr: string) => {
   if (!addr || !addr.startsWith('0x') || addr.length !== 42) return;
   walletAddress.value = addr;
   playerId.value = addr;
+  isAuthenticated.value = true;
   setPersisted('defeat_ai_wallet_address', addr);
   setPersisted('defeat_ai_player_id', addr);
-  showToast(`Address set: ${addr.slice(0, 6)}...${addr.slice(-4)}`);
   fetchOnChainBalance(addr);
+};
+
+const handleDisconnectWallet = () => {
+  walletAddress.value = '';
+  isAuthenticated.value = false;
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('defeat_ai_wallet_address');
+    localStorage.removeItem('defeat_ai_player_id');
+  }
+  isShopOpen.value = false;
+  showToast('Logged out');
 };
 
 // Load saved local state & initialize MiniKit + Global Raid Sync
@@ -262,8 +284,10 @@ onMounted(() => {
     const savedWallet = getPersisted('defeat_ai_wallet_address');
     if (savedWallet && savedWallet.startsWith('0x') && savedWallet.toLowerCase() !== TREASURY_WALLET.toLowerCase()) {
       walletAddress.value = savedWallet;
+      isAuthenticated.value = true;
     } else {
       walletAddress.value = '';
+      isAuthenticated.value = false;
     }
 
     let storedId = getPersisted('defeat_ai_player_id');
@@ -773,7 +797,16 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
 </script>
 
 <template>
+  <!-- Human Identity Verification Gate (Humans Only Protocol) -->
+  <HumanAuthGate 
+    v-if="!isAuthenticated"
+    :is-white-theme="isWhiteTheme"
+    :app-id="APP_ID"
+    @authenticated="handleGateAuthenticated"
+  />
+
   <div 
+    v-else
     class="h-[100dvh] max-h-[100dvh] w-screen overflow-hidden flex flex-col font-sans select-none relative transition-colors duration-500"
     :class="isWhiteTheme ? 'bg-white text-zinc-950' : 'bg-black text-white'"
   >
@@ -856,6 +889,7 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
       @close="isShopOpen = false"
       @buy-item="handleBuyItem"
       @connect-wallet="handleConnectWallet"
+      @disconnect-wallet="handleDisconnectWallet"
       @refresh-balance="fetchOnChainBalance"
       @claim-tokens="handleClaimTokens"
     />

@@ -9,6 +9,7 @@ import {
   ArrowUpRight, 
   Wallet, 
   RefreshCw, 
+  LogOut,
   Link as LinkIcon 
 } from 'lucide-vue-next';
 
@@ -28,6 +29,7 @@ const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'buyItem', item: 'sword' | 'bow'): void;
   (e: 'connectWallet'): void;
+  (e: 'disconnectWallet'): void;
   (e: 'refreshBalance', address?: string): void;
   (e: 'claimTokens', data: { amount: number; address: string }): void;
 }>();
@@ -147,16 +149,26 @@ const formatFullNumber = (val?: number) => {
                 <span>Connect</span>
               </button>
 
-              <button
-                v-else
-                @click="emit('refreshBalance', activeWallet)"
-                :disabled="isFetchingBalance"
-                class="p-1 rounded-md border text-zinc-400 hover:text-white transition-all active:scale-95"
-                :class="isWhiteTheme ? 'border-black/10 bg-white' : 'border-white/10 bg-white/5'"
-                title="Refresh on-chain balance"
-              >
-                <RefreshCw class="w-3 h-3" :class="{ 'animate-spin': isFetchingBalance }" />
-              </button>
+              <div v-else class="flex items-center gap-1">
+                <button
+                  @click="emit('refreshBalance', activeWallet)"
+                  :disabled="isFetchingBalance"
+                  class="p-1 rounded-md border text-zinc-400 hover:text-white transition-all active:scale-95"
+                  :class="isWhiteTheme ? 'border-black/10 bg-white' : 'border-white/10 bg-white/5'"
+                  title="Refresh on-chain balance"
+                >
+                  <RefreshCw class="w-3 h-3" :class="{ 'animate-spin': isFetchingBalance }" />
+                </button>
+
+                <button
+                  @click="emit('disconnectWallet')"
+                  class="p-1 rounded-md border text-zinc-400 hover:text-rose-400 transition-all active:scale-95"
+                  :class="isWhiteTheme ? 'border-black/10 bg-white' : 'border-white/10 bg-white/5'"
+                  title="Disconnect / Log out"
+                >
+                  <LogOut class="w-3 h-3" />
+                </button>
+              </div>
             </div>
           </div>
 
