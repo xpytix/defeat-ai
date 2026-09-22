@@ -93,6 +93,9 @@ const hasSword = ref(false); // Quantum Plasma Blade: 2x daily strike damage (-2
 const hasBow = ref(false);   // Tachyon Chrono-Bow: -50% cooldown (12h instead of 24h)
 const isShopOpen = ref(false);
 const isNotificationsEnabled = ref(false);
+const dailyLimitReached = ref(false);
+const dailyClaimResetAt = ref(0);
+const dailyClaimedTokens = ref(0);
 
 // Game State (Starts pre-warmed at Level 1 AutoCorrect, seamlessly matching live state)
 const currentBossLevel = ref(1);
@@ -165,6 +168,12 @@ const fetchRaidState = async (isView = false) => {
     if (res && res.player) {
       userTokens.value = res.player.tokens;
       unclaimedTokens.value = res.player.tokens;
+      dailyClaimedTokens.value = res.player.dailyClaimedTokens || 0;
+      dailyClaimResetAt.value = res.player.dailyClaimResetAt || 0;
+      dailyLimitReached.value = Boolean(
+        (res.player.dailyClaimedTokens >= 500 || res.dailyLimitReached) &&
+        Date.now() < (res.player.dailyClaimResetAt || 0)
+      );
 
       // Smart weapon status update:
       // If server confirms weapon ownership, enable and persist immediately.
@@ -631,6 +640,16 @@ const handleHit = async (type: 'free' | 'power') => {
           setPersisted('defeat_ai_nullifier', res.nullifierHash);
         }
 
+        if (res.dailyLimitReached !== undefined) {
+          dailyLimitReached.value = res.dailyLimitReached;
+        }
+        if (res.dailyClaimResetAt) {
+          dailyClaimResetAt.value = res.dailyClaimResetAt;
+        }
+        if (res.dailyClaimedTokens !== undefined) {
+          dailyClaimedTokens.value = res.dailyClaimedTokens;
+        }
+
         const dmg = hasSword.value ? 2 : 1;
         const tokens = hasSword.value ? 40 : 20;
         bossViewRef.value?.playAttackAnimation('free', dmg, tokens);
@@ -638,6 +657,10 @@ const handleHit = async (type: 'free' | 'power') => {
         if (res.onChainPayout?.success) {
           showToast(`🎉 On-Chain: +${tokens} $DEF sent to your wallet!`);
           if (walletAddress.value) fetchOnChainBalance(walletAddress.value);
+          pendingVoucher.value = { tokenAmount: tokens, isDirect: true };
+          showRewardClaimModal.value = true;
+          claimStatusSuccess.value = true;
+          claimStatusMessage.value = '';
         } else if (res.voucher) {
           pendingVoucher.value = res.voucher;
           showRewardClaimModal.value = true;
@@ -666,6 +689,16 @@ const handleHit = async (type: 'free' | 'power') => {
     }
   } else {
     // Power Strike (2 WLD)
+    if (dailyLimitReached.value) {
+      const diff = Math.max(0, dailyClaimResetAt.value - Date.now());
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((diff % (1000 * 60)) / 1000);
+      const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      showToast(`🔒 Daily claim limit reached (500/500 $DEF). Power Strike unlocks in ${timeStr}`);
+      return;
+    }
+
     let paymentPayload: any = null;
     if (MiniKit.isInstalled()) {
       try {
@@ -749,6 +782,16 @@ const handleHit = async (type: 'free' | 'power') => {
 
         setPersisted('defeat_ai_user_tokens', userTokens.value.toString());
 
+        if (res.dailyLimitReached !== undefined) {
+          dailyLimitReached.value = res.dailyLimitReached;
+        }
+        if (res.dailyClaimResetAt) {
+          dailyClaimResetAt.value = res.dailyClaimResetAt;
+        }
+        if (res.dailyClaimedTokens !== undefined) {
+          dailyClaimedTokens.value = res.dailyClaimedTokens;
+        }
+
         const dmg = res.damage || (hasSword.value ? 4 : 2);
         const tokens = res.tokensEarned || (hasSword.value ? 40 : 20);
         bossViewRef.value?.playAttackAnimation('power', dmg, tokens);
@@ -756,6 +799,10 @@ const handleHit = async (type: 'free' | 'power') => {
         if (res.onChainPayout?.success) {
           showToast(`🎉 Power Strike! +${tokens} $DEF sent to your wallet!`);
           if (walletAddress.value) fetchOnChainBalance(walletAddress.value);
+          pendingVoucher.value = { tokenAmount: tokens, isDirect: true };
+          showRewardClaimModal.value = true;
+          claimStatusSuccess.value = true;
+          claimStatusMessage.value = '';
         } else if (res.voucher) {
           pendingVoucher.value = res.voucher;
           showRewardClaimModal.value = true;
@@ -771,7 +818,14 @@ const handleHit = async (type: 'free' | 'power') => {
         }
       }
     } catch (err: any) {
-      showToast('Error recording power strike on server');
+      const errData = err.data || {};
+      if (errData.dailyLimitReached) {
+        dailyLimitReached.value = true;
+        if (errData.dailyClaimResetAt) dailyClaimResetAt.value = errData.dailyClaimResetAt;
+        showToast(`🔒 ${errData.error || 'Daily claim limit reached'}`);
+      } else {
+        showToast(errData.error || 'Error recording power strike on server');
+      }
     }
   }
 };
@@ -943,10 +997,17 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
     if (res && res.success) {
       userTokens.value = res.remainingTokens;
       unclaimedTokens.value = res.remainingTokens;
+      if (res.dailyLimitReached !== undefined) dailyLimitReached.value = res.dailyLimitReached;
+      if (res.dailyClaimResetAt) dailyClaimResetAt.value = res.dailyClaimResetAt;
+      if (res.dailyClaimedTokens !== undefined) dailyClaimedTokens.value = res.dailyClaimedTokens;
       setPersisted('defeat_ai_user_tokens', userTokens.value.toString());
       if (res.directTransfer) {
         showToast(res.message || `🎉 Successfully transferred ${claimData.amount} $DEF on-chain!`);
         await fetchOnChainBalance(claimData.address);
+        pendingVoucher.value = { tokenAmount: res.claimedAmount || claimData.amount, isDirect: true };
+        showRewardClaimModal.value = true;
+        claimStatusSuccess.value = true;
+        claimStatusMessage.value = '';
       } else if (res.voucher) {
         pendingVoucher.value = res.voucher;
         showRewardClaimModal.value = true;
@@ -1025,6 +1086,9 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
         :is-power-striking="isPowerStriking"
         :is-verifying="isVerifying"
         :is-notifications-enabled="isNotificationsEnabled"
+        :daily-limit-reached="dailyLimitReached"
+        :daily-claim-reset-at="dailyClaimResetAt"
+        :daily-claimed-tokens="dailyClaimedTokens"
         @hit="handleHit"
         @open-shop="handleOpenShop"
         @toggle-notifications="handleToggleNotifications"
@@ -1063,71 +1127,52 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
       @toggle-notifications="handleToggleNotifications"
     />
 
-    <!-- Direct Reward Claim Modal (Variant B: EIP-712 On-Chain Claim) -->
+    <!-- Ultra-Simplified Reward Claim Modal: ONLY the Sum of Claimed Tokens -->
     <div 
       v-if="showRewardClaimModal && pendingVoucher"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in select-none"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none"
       @click.self="showRewardClaimModal = false"
     >
       <div 
-        class="relative w-full max-w-sm rounded-2xl border p-5 shadow-2xl flex flex-col items-center text-center transition-colors my-auto"
-        :class="isWhiteTheme ? 'bg-white border-amber-500/40 text-zinc-950' : 'bg-zinc-950 border-amber-500/40 text-white shadow-amber-500/10'"
+        class="relative w-full max-w-[280px] sm:max-w-xs rounded-3xl border p-6 shadow-2xl flex flex-col items-center text-center transition-colors my-auto"
+        :class="isWhiteTheme ? 'bg-white border-amber-500/40 text-zinc-950 shadow-black/10' : 'bg-zinc-950 border-amber-500/40 text-white shadow-amber-500/10'"
       >
         <!-- Close button -->
         <button 
           @click="showRewardClaimModal = false"
-          class="absolute top-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center border transition-all active:scale-90"
+          class="absolute top-3.5 right-3.5 w-7 h-7 rounded-full flex items-center justify-center border transition-all active:scale-90"
           :class="isWhiteTheme ? 'bg-black/5 hover:bg-black/10 border-black/10 text-zinc-700' : 'bg-white/5 hover:bg-white/15 border-white/10 text-zinc-400 hover:text-white'"
         >
           <X class="w-3.5 h-3.5" />
         </button>
 
-        <!-- Glowing Reward Icon -->
-        <div class="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mb-3 shadow-lg shadow-amber-500/20">
-          <Sparkles class="w-8 h-8 text-amber-400" />
+        <!-- DEF Token Glowing Icon -->
+        <div class="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mb-1 shadow-lg shadow-amber-500/20">
+          <img src="/def.png" alt="DEF" class="w-9 h-9 object-contain rounded-full shadow" />
         </div>
 
-        <span class="text-[10px] font-mono font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border bg-amber-500/15 border-amber-500/30 text-amber-400 mb-1">
-          Raid Bounty Unlocked
+        <span class="text-[10px] font-mono font-black uppercase tracking-widest text-amber-500/90 mt-1">
+          REWARD RECEIVED
         </span>
 
-        <h3 class="text-xl font-extrabold tracking-tight mt-1">
-          Claim Your Rewards!
-        </h3>
-
-        <div 
-          class="my-3 py-2.5 px-4 rounded-xl border w-full flex items-center justify-center gap-2"
-          :class="isWhiteTheme ? 'bg-amber-50 border-amber-200' : 'bg-amber-500/10 border-amber-500/25'"
-        >
-          <span class="text-3xl font-black font-mono text-amber-400">
+        <!-- ONLY Sum of Claimed Tokens -->
+        <div class="my-3 flex items-baseline justify-center gap-1.5">
+          <span class="text-4xl sm:text-5xl font-black font-mono tracking-tight text-amber-400">
             +{{ pendingVoucher.tokenAmount }}
           </span>
-          <span class="text-sm font-bold font-mono text-amber-500">$DEF</span>
+          <span class="text-base font-extrabold font-mono text-amber-500">$DEF</span>
         </div>
 
-        <p class="text-xs font-mono opacity-70 mb-1 leading-relaxed">
-          Official on-chain voucher signed. Gas sponsored by World App ($0.00 fee).
-        </p>
-
-        <p class="text-[10px] font-mono text-amber-400/80 mb-3">
-          Instant on-chain drop delivered directly to your World App wallet.
-        </p>
-
-        <!-- Status message if claiming or success -->
-        <div v-if="claimStatusMessage" class="mb-3 text-xs font-mono font-bold" :class="claimStatusSuccess ? 'text-emerald-400' : 'text-amber-400'">
-          {{ claimStatusMessage }}
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="w-full flex flex-col gap-2 mt-1">
+        <!-- Single Action Button -->
+        <div class="w-full mt-2">
           <button
-            v-if="!claimStatusSuccess"
+            v-if="!pendingVoucher.isDirect && !claimStatusSuccess"
             @click="executeOnChainClaim(pendingVoucher)"
             :disabled="isClaimingOnChain"
             class="w-full py-3 px-4 rounded-xl bg-amber-500 text-black font-mono font-black text-xs uppercase tracking-wider hover:bg-amber-400 active:scale-95 transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             <Sparkles class="w-4 h-4" />
-            <span>{{ isClaimingOnChain ? 'CONFIRMING IN WORLD APP...' : `RECEIVE ${pendingVoucher.tokenAmount} $DEF ON-CHAIN` }}</span>
+            <span>{{ isClaimingOnChain ? 'CLAIMING...' : `CLAIM ${pendingVoucher.tokenAmount} $DEF` }}</span>
           </button>
 
           <button
@@ -1136,15 +1181,7 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
             class="w-full py-3 px-4 rounded-xl bg-emerald-500 text-black font-mono font-black text-xs uppercase tracking-wider hover:bg-emerald-400 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer"
           >
             <Check class="w-4 h-4" />
-            <span>CLAIMED TO WALLET</span>
-          </button>
-
-          <button
-            v-if="!claimStatusSuccess && !isClaimingOnChain"
-            @click="showRewardClaimModal = false"
-            class="w-full py-1 text-[11px] font-mono opacity-50 hover:opacity-100 transition-opacity"
-          >
-            Dismiss
+            <span>OK</span>
           </button>
         </div>
       </div>

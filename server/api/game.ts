@@ -40,6 +40,21 @@ export default defineEventHandler(async (event) => {
       await savePlayerProfile(player);
     }
 
+    const now = Date.now();
+    const MAX_DAILY_CLAIM = 500;
+
+    // Daily Claim Limit Cycle (24h Window)
+    if (!player.dailyClaimResetAt || now >= player.dailyClaimResetAt) {
+      player.dailyClaimedTokens = 0;
+      player.dailyClaimResetAt = now + (24 * 60 * 60 * 1000);
+      await savePlayerProfile(player);
+    }
+
+    const dailyClaimedTokens = player.dailyClaimedTokens || 0;
+    const dailyLimitReached = dailyClaimedTokens >= MAX_DAILY_CLAIM && now < (player.dailyClaimResetAt || 0);
+    const dailyClaimRemaining = Math.max(0, MAX_DAILY_CLAIM - dailyClaimedTokens);
+    const dailyClaimResetAt = player.dailyClaimResetAt || (now + 24 * 60 * 60 * 1000);
+
     const effectiveNullifier = nullifierHash || player.nullifierHash;
     let humanCooldownRemainingMs = 0;
     if (effectiveNullifier) {
@@ -55,7 +70,17 @@ export default defineEventHandler(async (event) => {
     return {
       success: true,
       raid,
-      player,
+      player: {
+        ...player,
+        dailyClaimedTokens,
+        dailyClaimResetAt,
+        dailyLimitReached,
+        dailyClaimRemaining
+      },
+      dailyLimitReached,
+      dailyClaimResetAt,
+      dailyClaimedTokens,
+      dailyClaimRemaining,
       humanCooldownRemainingMs,
       bossMetadata: BOSS_METADATA
     };
@@ -131,6 +156,37 @@ export default defineEventHandler(async (event) => {
 
     if (action === 'strike') {
       const now = Date.now();
+      const MAX_DAILY_CLAIM = 500;
+
+      // Daily Claim Limit Cycle (24h Window)
+      if (!player.dailyClaimResetAt || now >= player.dailyClaimResetAt) {
+        player.dailyClaimedTokens = 0;
+        player.dailyClaimResetAt = now + (24 * 60 * 60 * 1000);
+      }
+
+      const dailyClaimedTokens = player.dailyClaimedTokens || 0;
+      const dailyLimitReached = dailyClaimedTokens >= MAX_DAILY_CLAIM && now < (player.dailyClaimResetAt || 0);
+      const dailyClaimRemaining = Math.max(0, MAX_DAILY_CLAIM - dailyClaimedTokens);
+      const dailyClaimResetAt = player.dailyClaimResetAt || (now + 24 * 60 * 60 * 1000);
+
+      // Block Power Strike if daily token claim limit is reached
+      if (type === 'power' && dailyLimitReached) {
+        setResponseStatus(event, 400);
+        const remainingMs = Math.max(0, dailyClaimResetAt - now);
+        const h = Math.floor(remainingMs / (1000 * 60 * 60));
+        const m = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((remainingMs % (1000 * 60)) / 1000);
+        const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        return {
+          success: false,
+          error: `Daily claim limit reached (500/500 $DEF). Power Strike unlocks in ${timeStr}.`,
+          dailyLimitReached: true,
+          dailyClaimResetAt,
+          dailyClaimedTokens,
+          dailyClaimRemaining
+        };
+      }
+
       let damage = 1;
       let tokensEarned = 20;
       let weapon = 'Base Strike';
@@ -312,6 +368,7 @@ export default defineEventHandler(async (event) => {
         if (payout.success) {
           onChainPayout = payout;
           (player as any).claimedTokens = ((player as any).claimedTokens || 0) + tokensEarned;
+          player.dailyClaimedTokens = (player.dailyClaimedTokens || 0) + tokensEarned;
           console.log(`[Strike Payout] Direct transfer of ${tokensEarned} $DEF to ${targetAddress} confirmed: ${payout.txHash}`);
         } else {
           console.warn(`[Strike Payout] Direct payout not executed (${payout.error}), falling back to EIP-712 voucher.`);
@@ -340,11 +397,34 @@ export default defineEventHandler(async (event) => {
         voucher,
         onChainPayout,
         raid,
-        player
+        player: {
+          ...player,
+          dailyClaimedTokens: player.dailyClaimedTokens || 0,
+          dailyClaimResetAt,
+          dailyLimitReached: (player.dailyClaimedTokens || 0) >= MAX_DAILY_CLAIM,
+          dailyClaimRemaining: Math.max(0, MAX_DAILY_CLAIM - (player.dailyClaimedTokens || 0))
+        },
+        dailyLimitReached: (player.dailyClaimedTokens || 0) >= MAX_DAILY_CLAIM,
+        dailyClaimResetAt,
+        dailyClaimedTokens: player.dailyClaimedTokens || 0,
+        dailyClaimRemaining: Math.max(0, MAX_DAILY_CLAIM - (player.dailyClaimedTokens || 0))
       };
     }
 
     if (action === 'claim') {
+      const now = Date.now();
+      const MAX_DAILY_CLAIM = 500;
+
+      // Daily Claim Limit Cycle (24h Window)
+      if (!player.dailyClaimResetAt || now >= player.dailyClaimResetAt) {
+        player.dailyClaimedTokens = 0;
+        player.dailyClaimResetAt = now + (24 * 60 * 60 * 1000);
+      }
+
+      const dailyClaimedTokens = player.dailyClaimedTokens || 0;
+      const dailyClaimRemaining = Math.max(0, MAX_DAILY_CLAIM - dailyClaimedTokens);
+      const dailyClaimResetAt = player.dailyClaimResetAt || (now + 24 * 60 * 60 * 1000);
+
       const { recipientAddress, amount } = body || {};
       const requestedAmount = Math.floor(Number(amount));
 
@@ -358,6 +438,23 @@ export default defineEventHandler(async (event) => {
         return { success: false, error: 'Invalid claim amount' };
       }
 
+      if (dailyClaimRemaining <= 0) {
+        setResponseStatus(event, 400);
+        const remainingMs = Math.max(0, dailyClaimResetAt - now);
+        const h = Math.floor(remainingMs / (1000 * 60 * 60));
+        const m = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((remainingMs % (1000 * 60)) / 1000);
+        const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        return {
+          success: false,
+          error: `Daily claim limit of 500 $DEF reached for today. Power Strike and claims unlock in ${timeStr}.`,
+          dailyLimitReached: true,
+          dailyClaimResetAt,
+          dailyClaimedTokens,
+          dailyClaimRemaining: 0
+        };
+      }
+
       if (player.tokens < 20) {
         setResponseStatus(event, 400);
         return { 
@@ -367,9 +464,8 @@ export default defineEventHandler(async (event) => {
         };
       }
 
-      // Maximum daily claim is 500 $DEF. Excess tokens remain safe in player's game balance.
-      const MAX_DAILY_CLAIM = 500;
-      const claimAmount = Math.min(Math.min(requestedAmount, player.tokens), MAX_DAILY_CLAIM);
+      // Maximum claimable within remaining daily quota
+      const claimAmount = Math.min(Math.min(requestedAmount, player.tokens), dailyClaimRemaining);
 
       if (claimAmount < 20) {
         setResponseStatus(event, 400);
@@ -380,6 +476,7 @@ export default defineEventHandler(async (event) => {
       const payout = await distributeDefRewardOnChain(recipientAddress, claimAmount);
       if (payout.success) {
         player.tokens = Math.max(0, player.tokens - claimAmount);
+        player.dailyClaimedTokens = (player.dailyClaimedTokens || 0) + claimAmount;
         (player as any).claimedTokens = ((player as any).claimedTokens || 0) + claimAmount;
         player.address = recipientAddress;
         await savePlayerProfile(player);
@@ -393,7 +490,17 @@ export default defineEventHandler(async (event) => {
           remainingTokens: player.tokens,
           totalClaimed: (player as any).claimedTokens,
           recipientAddress,
-          player,
+          player: {
+            ...player,
+            dailyClaimedTokens: player.dailyClaimedTokens,
+            dailyClaimResetAt: player.dailyClaimResetAt,
+            dailyLimitReached: player.dailyClaimedTokens >= MAX_DAILY_CLAIM,
+            dailyClaimRemaining: Math.max(0, MAX_DAILY_CLAIM - player.dailyClaimedTokens)
+          },
+          dailyLimitReached: player.dailyClaimedTokens >= MAX_DAILY_CLAIM,
+          dailyClaimResetAt: player.dailyClaimResetAt,
+          dailyClaimedTokens: player.dailyClaimedTokens,
+          dailyClaimRemaining: Math.max(0, MAX_DAILY_CLAIM - player.dailyClaimedTokens),
           message: `🎉 Transferred ${claimAmount} $DEF on-chain to ${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}!`
         };
       }
@@ -410,6 +517,7 @@ export default defineEventHandler(async (event) => {
       }
 
       player.tokens = Math.max(0, player.tokens - claimAmount);
+      player.dailyClaimedTokens = (player.dailyClaimedTokens || 0) + claimAmount;
       (player as any).claimedTokens = ((player as any).claimedTokens || 0) + claimAmount;
       player.address = recipientAddress;
       await savePlayerProfile(player);
@@ -421,7 +529,17 @@ export default defineEventHandler(async (event) => {
         remainingTokens: player.tokens,
         totalClaimed: (player as any).claimedTokens,
         recipientAddress,
-        player,
+        player: {
+          ...player,
+          dailyClaimedTokens: player.dailyClaimedTokens,
+          dailyClaimResetAt: player.dailyClaimResetAt,
+          dailyLimitReached: player.dailyClaimedTokens >= MAX_DAILY_CLAIM,
+          dailyClaimRemaining: Math.max(0, MAX_DAILY_CLAIM - player.dailyClaimedTokens)
+        },
+        dailyLimitReached: player.dailyClaimedTokens >= MAX_DAILY_CLAIM,
+        dailyClaimResetAt: player.dailyClaimResetAt,
+        dailyClaimedTokens: player.dailyClaimedTokens,
+        dailyClaimRemaining: Math.max(0, MAX_DAILY_CLAIM - player.dailyClaimedTokens),
         message: `🎉 Generated on-chain claim voucher for ${claimAmount} $DEF (Daily Limit: 500 $DEF)!`
       };
     }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { Eye, Swords, Heart, Coins, Zap, ShieldAlert, Volume2, VolumeX, Bell, BellRing } from 'lucide-vue-next';
+import { Eye, Swords, Heart, Coins, Zap, ShieldAlert, Volume2, VolumeX, Bell, BellRing, Lock } from 'lucide-vue-next';
 
 interface FloatingDamage {
   id: number;
@@ -42,6 +42,9 @@ const props = defineProps<{
   isPowerStriking?: boolean;
   isVerifying?: boolean;
   isNotificationsEnabled?: boolean;
+  dailyLimitReached?: boolean;
+  dailyClaimResetAt?: number;
+  dailyClaimedTokens?: number;
 }>();
 
 const emit = defineEmits<{
@@ -213,6 +216,26 @@ const updateCountdown = () => {
   countdownText.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 };
 
+// Daily Claim Limit Countdown (Power Strike Unlock Timer)
+const dailyLimitCountdownText = ref('24:00:00');
+
+const updateDailyLimitCountdown = () => {
+  if (!props.dailyClaimResetAt) {
+    dailyLimitCountdownText.value = '24:00:00';
+    return;
+  }
+  const diff = Math.max(0, props.dailyClaimResetAt - Date.now());
+  if (diff <= 0) {
+    dailyLimitCountdownText.value = 'Ready';
+    return;
+  }
+
+  const h = Math.floor(diff / (1000 * 60 * 60));
+  const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const s = Math.floor((diff % (1000 * 60)) / 1000);
+  dailyLimitCountdownText.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+};
+
 // Soundtrack BGM Audio System (Looped, Default Off)
 const isAudioPlaying = ref(false);
 let bgmAudio: HTMLAudioElement | null = null;
@@ -332,7 +355,11 @@ const initGyroscope = () => {
 onMounted(() => {
   setupParticles();
   updateCountdown();
-  countdownInterval = setInterval(updateCountdown, 1000);
+  updateDailyLimitCountdown();
+  countdownInterval = setInterval(() => {
+    updateCountdown();
+    updateDailyLimitCountdown();
+  }, 1000);
   initGyroscope();
   physicsFrameId = requestAnimationFrame(updatePhysics);
 });
@@ -432,7 +459,22 @@ defineExpose({
 
 // Trigger Hit (Requests MiniKit confirmation without preemptive animation)
 const triggerHit = (type: 'free' | 'power') => {
+  if (type === 'power' && props.dailyLimitReached) {
+    return;
+  }
   emit('hit', type);
+};
+
+const handleBossCardClick = () => {
+  if (props.freeHitAvailable) {
+    triggerHit('free');
+  } else if (props.dailyLimitReached) {
+    if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate([40, 40]);
+    }
+  } else {
+    triggerHit('power');
+  }
 };
 
 // Compact formatter for token count so large numbers never break layout
@@ -588,7 +630,7 @@ const formatTokens = (val: number) => {
 
       <!-- LAYER 3: THE 3D BOSS CHARACTER CONTAINER (EXPANDS FOR IPHONE 16 PRO MAX & TABLETS) -->
       <div 
-        @click="freeHitAvailable ? triggerHit('free', $event) : triggerHit('power', $event)"
+        @click="handleBossCardClick"
         class="relative w-full h-full max-h-full max-w-[min(94vw,430px)] sm:max-w-[500px] md:max-w-[580px] aspect-square cursor-pointer flex items-center justify-center transition-transform duration-100 ease-out active:scale-95 my-auto"
         :style="{
           transform: `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,
@@ -874,28 +916,43 @@ const formatTokens = (val: number) => {
         </span>
       </div>
 
-      <!-- POWER STRIKE BUTTON (2 WLD = ATTACK + 20 TOKENS) -->
+      <!-- POWER STRIKE BUTTON (2 WLD = ATTACK + 20 TOKENS, LOCKED IF DAILY CLAIM LIMIT REACHED) -->
       <button 
         @click="triggerHit('power', $event)"
-        :disabled="isPowerStriking"
-        class="w-full py-2.5 sm:py-3 px-4 rounded-2xl active:scale-[0.98] transition-all flex items-center justify-between shadow-sm cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
-        :class="isWhiteTheme 
-          ? 'bg-black/[0.03] hover:bg-black/[0.06] border border-cyan-600 text-zinc-950' 
-          : 'bg-white/[0.03] hover:bg-white/[0.08] border border-cyan-500/30 hover:border-cyan-500/60 text-zinc-300 hover:text-white'"
+        :disabled="isPowerStriking || dailyLimitReached"
+        class="w-full py-2.5 sm:py-3 px-4 rounded-2xl active:scale-[0.98] transition-all flex items-center justify-between shadow-sm cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed select-none"
+        :class="dailyLimitReached
+          ? (isWhiteTheme ? 'bg-amber-500/10 border border-amber-500/40 text-amber-950' : 'bg-amber-500/10 border border-amber-500/30 text-amber-300')
+          : (isWhiteTheme 
+              ? 'bg-black/[0.03] hover:bg-black/[0.06] border border-cyan-600 text-zinc-950' 
+              : 'bg-white/[0.03] hover:bg-white/[0.08] border border-cyan-500/30 hover:border-cyan-500/60 text-zinc-300 hover:text-white')"
       >
-        <div class="flex items-center gap-2">
+        <div v-if="dailyLimitReached" class="flex items-center gap-2 min-w-0">
+          <Lock class="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <div class="flex flex-col text-left min-w-0 truncate">
+            <span class="text-[11px] sm:text-xs font-mono tracking-wider font-extrabold uppercase text-amber-400 truncate">
+              DAILY LIMIT REACHED (500/500 $DEF)
+            </span>
+            <span class="text-[10px] font-mono text-zinc-400 truncate">
+              Power Strike unlocks in: <strong :class="isWhiteTheme ? 'text-zinc-900' : 'text-white'">{{ dailyLimitCountdownText }}</strong>
+            </span>
+          </div>
+        </div>
+        <div v-else class="flex items-center gap-2">
           <Zap class="w-3.5 h-3.5 text-cyan-500 fill-cyan-500" :class="{ 'animate-spin': isPowerStriking }" />
           <span class="text-[11px] sm:text-xs font-mono tracking-wider font-extrabold uppercase">
             {{ isPowerStriking ? 'STRIKING BOSS...' : (hasSword ? 'Plasma Power Strike (+40 $DEF)' : 'Power Strike (+20 $DEF)') }}
           </span>
         </div>
         <span 
-          class="text-[11px] sm:text-xs font-mono font-black px-2 py-0.5 rounded-md border"
-          :class="isWhiteTheme 
-            ? 'text-cyan-900 bg-cyan-100 border-cyan-300' 
-            : 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30'"
+          class="text-[11px] sm:text-xs font-mono font-black px-2 py-0.5 rounded-md border shrink-0"
+          :class="dailyLimitReached
+            ? 'text-amber-400 bg-amber-400/15 border-amber-400/40'
+            : (isWhiteTheme 
+                ? 'text-cyan-900 bg-cyan-100 border-cyan-300' 
+                : 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30')"
         >
-          {{ isPowerStriking ? 'PROCESSING' : '2 WLD' }}
+          {{ dailyLimitReached ? 'LOCKED' : (isPowerStriking ? 'PROCESSING' : '2 WLD') }}
         </span>
       </button>
 

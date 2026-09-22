@@ -45,6 +45,8 @@ export interface PlayerProfile {
   lastFreeHitTime: number;
   totalDamageDealt: number;
   totalStrikes: number;
+  dailyClaimedTokens?: number;
+  dailyClaimResetAt?: number;
 }
 
 export const BOSS_METADATA = [
