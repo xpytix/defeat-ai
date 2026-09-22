@@ -151,3 +151,29 @@ export async function distributeDefRewardOnChain(
     };
   }
 }
+
+/**
+ * Reads claimed $DEF tokens for a recipient today directly from DefeatAiDistributor smart contract.
+ */
+export async function getOnChainClaimedToday(walletAddress: string): Promise<number> {
+  if (!walletAddress || !walletAddress.startsWith('0x') || walletAddress.length !== 42) {
+    return 0;
+  }
+  try {
+    const client = createPublicClient({
+      chain: worldchain,
+      transport: http('https://worldchain-mainnet.g.alchemy.com/public')
+    });
+    const currentDay = BigInt(Math.floor(Date.now() / 1000 / 86400));
+    const claimedWei = await client.readContract({
+      address: DISTRIBUTOR_ADDRESS,
+      abi: parseAbi(['function playerClaimedInDay(address, uint256) view returns (uint256)']),
+      functionName: 'playerClaimedInDay',
+      args: [walletAddress as `0x${string}`, currentDay]
+    });
+    return Number(claimedWei / 10n**18n);
+  } catch (err: any) {
+    console.warn('[OnChain] Error reading playerClaimedInDay:', err.message);
+    return 0;
+  }
+}

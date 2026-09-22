@@ -169,10 +169,11 @@ const fetchRaidState = async (isView = false) => {
       userTokens.value = res.player.tokens;
       unclaimedTokens.value = res.player.tokens;
       dailyClaimedTokens.value = res.player.dailyClaimedTokens || 0;
-      dailyClaimResetAt.value = res.player.dailyClaimResetAt || 0;
+      dailyClaimResetAt.value = res.dailyClaimResetAt || res.player.dailyClaimResetAt || 0;
       dailyLimitReached.value = Boolean(
-        (res.player.dailyClaimedTokens >= 500 || res.dailyLimitReached) &&
-        Date.now() < (res.player.dailyClaimResetAt || 0)
+        res.dailyLimitReached ||
+        res.player?.dailyLimitReached ||
+        ((res.player?.dailyClaimedTokens >= 500) && Date.now() < (res.player?.dailyClaimResetAt || 0))
       );
 
       // Smart weapon status update:

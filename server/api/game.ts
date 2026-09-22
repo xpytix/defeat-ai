@@ -11,9 +11,15 @@ import {
   BOSS_METADATA 
 } from '../utils/db';
 import { verifyWorldIdStrikeProof, type WorldIdProofPayload } from '../utils/worldId';
-import { distributeDefRewardOnChain, generateClaimVoucher } from '../utils/distributor';
+import { distributeDefRewardOnChain, generateClaimVoucher, getOnChainClaimedToday } from '../utils/distributor';
 import { verifyWorldAppPayment } from '../utils/payment';
 import { sendWorldAppNotification } from '../utils/notifications';
+
+function getNextUtcMidnight(): number {
+  const d = new Date();
+  d.setUTCHours(24, 0, 0, 0);
+  return d.getTime();
+}
 
 export default defineEventHandler(async (event) => {
   const method = event.node.req.method;
@@ -43,17 +49,24 @@ export default defineEventHandler(async (event) => {
     const now = Date.now();
     const MAX_DAILY_CLAIM = 500;
 
-    // Daily Claim Limit Cycle (24h Window)
+    // Daily Claim Limit Cycle (Aligned with smart contract 24h window at 00:00 UTC)
     if (!player.dailyClaimResetAt || now >= player.dailyClaimResetAt) {
       player.dailyClaimedTokens = 0;
-      player.dailyClaimResetAt = now + (24 * 60 * 60 * 1000);
+      player.dailyClaimResetAt = getNextUtcMidnight();
       await savePlayerProfile(player);
     }
 
-    const dailyClaimedTokens = player.dailyClaimedTokens || 0;
-    const dailyLimitReached = dailyClaimedTokens >= MAX_DAILY_CLAIM && now < (player.dailyClaimResetAt || 0);
+    const targetAddr = walletAddress || player.address;
+    let onChainClaimed = 0;
+    if (targetAddr) {
+      onChainClaimed = await getOnChainClaimedToday(targetAddr);
+    }
+
+    const dailyClaimedTokens = Math.max(player.dailyClaimedTokens || 0, onChainClaimed);
+    const minTokensPerStrike = player.hasSword ? 40 : 20;
     const dailyClaimRemaining = Math.max(0, MAX_DAILY_CLAIM - dailyClaimedTokens);
-    const dailyClaimResetAt = player.dailyClaimResetAt || (now + 24 * 60 * 60 * 1000);
+    const dailyLimitReached = (dailyClaimedTokens >= MAX_DAILY_CLAIM || dailyClaimRemaining < minTokensPerStrike) && now < (player.dailyClaimResetAt || 0);
+    const dailyClaimResetAt = player.dailyClaimResetAt || getNextUtcMidnight();
 
     const effectiveNullifier = nullifierHash || player.nullifierHash;
     let humanCooldownRemainingMs = 0;
@@ -158,16 +171,23 @@ export default defineEventHandler(async (event) => {
       const now = Date.now();
       const MAX_DAILY_CLAIM = 500;
 
-      // Daily Claim Limit Cycle (24h Window)
+      // Daily Claim Limit Cycle (Aligned with smart contract 24h window at 00:00 UTC)
       if (!player.dailyClaimResetAt || now >= player.dailyClaimResetAt) {
         player.dailyClaimedTokens = 0;
-        player.dailyClaimResetAt = now + (24 * 60 * 60 * 1000);
+        player.dailyClaimResetAt = getNextUtcMidnight();
       }
 
-      const dailyClaimedTokens = player.dailyClaimedTokens || 0;
-      const dailyLimitReached = dailyClaimedTokens >= MAX_DAILY_CLAIM && now < (player.dailyClaimResetAt || 0);
+      const targetAddr = targetAddress || player.address;
+      let onChainClaimed = 0;
+      if (targetAddr) {
+        onChainClaimed = await getOnChainClaimedToday(targetAddr);
+      }
+
+      const dailyClaimedTokens = Math.max(player.dailyClaimedTokens || 0, onChainClaimed);
+      const minTokensPerStrike = player.hasSword ? 40 : 20;
       const dailyClaimRemaining = Math.max(0, MAX_DAILY_CLAIM - dailyClaimedTokens);
-      const dailyClaimResetAt = player.dailyClaimResetAt || (now + 24 * 60 * 60 * 1000);
+      const dailyLimitReached = (dailyClaimedTokens >= MAX_DAILY_CLAIM || dailyClaimRemaining < minTokensPerStrike) && now < (player.dailyClaimResetAt || 0);
+      const dailyClaimResetAt = player.dailyClaimResetAt || getNextUtcMidnight();
 
       // Block Power Strike if daily token claim limit is reached
       if (type === 'power' && dailyLimitReached) {
@@ -356,6 +376,12 @@ export default defineEventHandler(async (event) => {
       player.totalDamageDealt += damage;
       player.totalStrikes += 1;
 
+      // Always increment player's daily claimed tokens for this strike
+      player.dailyClaimedTokens = (dailyClaimedTokens || 0) + tokensEarned;
+      const finalDailyClaimed = player.dailyClaimedTokens;
+      const finalDailyRemaining = Math.max(0, MAX_DAILY_CLAIM - finalDailyClaimed);
+      const finalLimitReached = (finalDailyClaimed >= MAX_DAILY_CLAIM || finalDailyRemaining < minTokensPerStrike);
+
       // Target recipient wallet address
       let voucher: any = null;
       let onChainPayout: any = null;
@@ -368,7 +394,6 @@ export default defineEventHandler(async (event) => {
         if (payout.success) {
           onChainPayout = payout;
           (player as any).claimedTokens = ((player as any).claimedTokens || 0) + tokensEarned;
-          player.dailyClaimedTokens = (player.dailyClaimedTokens || 0) + tokensEarned;
           console.log(`[Strike Payout] Direct transfer of ${tokensEarned} $DEF to ${targetAddress} confirmed: ${payout.txHash}`);
         } else {
           console.warn(`[Strike Payout] Direct payout not executed (${payout.error}), falling back to EIP-712 voucher.`);
@@ -399,15 +424,15 @@ export default defineEventHandler(async (event) => {
         raid,
         player: {
           ...player,
-          dailyClaimedTokens: player.dailyClaimedTokens || 0,
+          dailyClaimedTokens: finalDailyClaimed,
           dailyClaimResetAt,
-          dailyLimitReached: (player.dailyClaimedTokens || 0) >= MAX_DAILY_CLAIM,
-          dailyClaimRemaining: Math.max(0, MAX_DAILY_CLAIM - (player.dailyClaimedTokens || 0))
+          dailyLimitReached: finalLimitReached,
+          dailyClaimRemaining: finalDailyRemaining
         },
-        dailyLimitReached: (player.dailyClaimedTokens || 0) >= MAX_DAILY_CLAIM,
+        dailyLimitReached: finalLimitReached,
         dailyClaimResetAt,
-        dailyClaimedTokens: player.dailyClaimedTokens || 0,
-        dailyClaimRemaining: Math.max(0, MAX_DAILY_CLAIM - (player.dailyClaimedTokens || 0))
+        dailyClaimedTokens: finalDailyClaimed,
+        dailyClaimRemaining: finalDailyRemaining
       };
     }
 
@@ -415,17 +440,22 @@ export default defineEventHandler(async (event) => {
       const now = Date.now();
       const MAX_DAILY_CLAIM = 500;
 
-      // Daily Claim Limit Cycle (24h Window)
+      // Daily Claim Limit Cycle (Aligned with smart contract 24h window at 00:00 UTC)
       if (!player.dailyClaimResetAt || now >= player.dailyClaimResetAt) {
         player.dailyClaimedTokens = 0;
-        player.dailyClaimResetAt = now + (24 * 60 * 60 * 1000);
+        player.dailyClaimResetAt = getNextUtcMidnight();
       }
 
-      const dailyClaimedTokens = player.dailyClaimedTokens || 0;
-      const dailyClaimRemaining = Math.max(0, MAX_DAILY_CLAIM - dailyClaimedTokens);
-      const dailyClaimResetAt = player.dailyClaimResetAt || (now + 24 * 60 * 60 * 1000);
-
       const { recipientAddress, amount } = body || {};
+      const targetAddr = recipientAddress || targetAddress || player.address;
+      let onChainClaimed = 0;
+      if (targetAddr) {
+        onChainClaimed = await getOnChainClaimedToday(targetAddr);
+      }
+
+      const dailyClaimedTokens = Math.max(player.dailyClaimedTokens || 0, onChainClaimed);
+      const dailyClaimRemaining = Math.max(0, MAX_DAILY_CLAIM - dailyClaimedTokens);
+      const dailyClaimResetAt = player.dailyClaimResetAt || getNextUtcMidnight();
       const requestedAmount = Math.floor(Number(amount));
 
       if (!recipientAddress || typeof recipientAddress !== 'string' || !recipientAddress.startsWith('0x') || recipientAddress.length !== 42) {
