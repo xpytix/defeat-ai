@@ -6,12 +6,12 @@ export default defineEventHandler(async (event) => {
   const secret = query.secret as string | undefined;
   const cooldownOnly = query.cooldownOnly === '1' || query.cooldownOnly === 'true';
 
-  // Simple admin protection if configured, or allow in initial setup
+  // Mandatory admin secret protection
   const adminSecret = process.env.ADMIN_RESET_SECRET || 'defeat_ai_pristine_2026';
   
-  if (secret !== adminSecret && process.env.NODE_ENV === 'production') {
+  if (!secret || secret !== adminSecret) {
     setResponseStatus(event, 403);
-    return { success: false, error: 'Forbidden. Invalid reset secret.' };
+    return { success: false, error: 'Forbidden. Invalid or missing reset secret.' };
   }
 
   if (cooldownOnly) {
