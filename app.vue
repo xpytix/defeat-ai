@@ -46,6 +46,7 @@ const maxHp = ref(50);
 const currentHp = ref(50);
 const bossName = ref('AutoCorrect');
 const totalStrikes = ref(0);
+const totalViews = ref(0);
 const uniqueHumans = ref(0);
 const freeHitAvailable = ref(true);
 const nextFreeHitTime = ref<number | null>(null);
@@ -75,13 +76,14 @@ const BOSS_LIST = [
 const isWhiteTheme = computed(() => [3, 5, 8].includes(currentBossLevel.value));
 
 // Fetch global live raid state from Netlify Blobs API
-const fetchRaidState = async () => {
+const fetchRaidState = async (isView = false) => {
   try {
     isSyncing.value = true;
     const res: any = await $fetch('/api/game', {
       params: { 
         playerId: playerId.value,
-        nullifierHash: verifiedNullifier.value || undefined
+        nullifierHash: verifiedNullifier.value || undefined,
+        isView: isView ? '1' : undefined
       }
     });
 
@@ -91,6 +93,7 @@ const fetchRaidState = async () => {
       maxHp.value = res.raid.maxHp;
       currentHp.value = res.raid.currentHp;
       totalStrikes.value = res.raid.totalStrikes || 0;
+      totalViews.value = res.raid.totalViews || 0;
       uniqueHumans.value = Object.keys(res.raid.contributors || {}).length;
       recentStrikes.value = res.raid.recentStrikes || [];
     }
@@ -101,20 +104,21 @@ const fetchRaidState = async () => {
       hasSword.value = res.player.hasSword;
       hasBow.value = res.player.hasBow;
 
-      // Handle server-enforced cooldown based on nullifier hash
+      // Handle server-enforced cooldown based on nullifier hash & player state
       if (res.humanCooldownRemainingMs && res.humanCooldownRemainingMs > 0) {
         freeHitAvailable.value = false;
         nextFreeHitTime.value = Date.now() + res.humanCooldownRemainingMs;
-      } else if (res.player.lastFreeHitTime) {
+      } else if (res.player.lastFreeHitTime && (Date.now() - res.player.lastFreeHitTime < (res.player.hasBow ? 12 : 24) * 3600000)) {
         const cooldownHours = res.player.hasBow ? 12 : 24;
         const cooldown = cooldownHours * 60 * 60 * 1000;
         const expiry = res.player.lastFreeHitTime + cooldown;
-        if (Date.now() < expiry) {
-          freeHitAvailable.value = false;
-          nextFreeHitTime.value = expiry;
-        } else {
-          freeHitAvailable.value = true;
-          nextFreeHitTime.value = null;
+        freeHitAvailable.value = false;
+        nextFreeHitTime.value = expiry;
+      } else {
+        freeHitAvailable.value = true;
+        nextFreeHitTime.value = null;
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('defeat_ai_last_free_hit');
         }
       }
     }
@@ -251,10 +255,10 @@ onMounted(() => {
     }
 
     // 3. Connect to Netlify Blobs Backend & World Chain RPC
-    fetchRaidState();
+    fetchRaidState(true); // Registers 1 app view
     fetchOnChainBalance();
     pollTimer = setInterval(() => {
-      fetchRaidState();
+      fetchRaidState(false); // Refreshes raid state without inflating views
       fetchOnChainBalance();
     }, 12000);
   }
@@ -629,6 +633,7 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
         :has-bow="hasBow"
         :is-white-theme="isWhiteTheme"
         :total-strikes="totalStrikes"
+        :total-views="totalViews"
         :unique-humans="uniqueHumans"
         :recent-strikes="recentStrikes"
         :is-power-striking="isPowerStriking"

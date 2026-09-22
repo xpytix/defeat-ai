@@ -26,6 +26,8 @@ export interface GlobalRaidState {
   maxHp: number;
   bossName: string;
   totalStrikes: number;
+  totalViews: number;
+  cooldownResetAt?: number;
   defeatedBosses: number[];
   recentStrikes: StrikeRecord[];
   contributors: Record<string, ContributorStats>;
@@ -80,6 +82,8 @@ export function createPristineRaidState(): GlobalRaidState {
     maxHp: initialBoss.maxHp,
     bossName: initialBoss.name,
     totalStrikes: 0,
+    totalViews: 0,
+    cooldownResetAt: 0,
     defeatedBosses: [],
     recentStrikes: [],
     contributors: {},
@@ -94,6 +98,7 @@ export async function getRaidState(): Promise<GlobalRaidState> {
     try {
       const data = await store.get('raid_state', { type: 'json' }) as GlobalRaidState | null;
       if (data && typeof data.currentLevel === 'number') {
+        if (typeof data.totalViews !== 'number') data.totalViews = 0;
         memoryRaid = data;
         return data;
       }
@@ -103,6 +108,7 @@ export async function getRaidState(): Promise<GlobalRaidState> {
   }
 
   if (memoryRaid) {
+    if (typeof memoryRaid.totalViews !== 'number') memoryRaid.totalViews = 0;
     return memoryRaid;
   }
 
@@ -122,6 +128,7 @@ export async function getRaidState(): Promise<GlobalRaidState> {
 
 export async function resetRaidState(): Promise<GlobalRaidState> {
   const fresh = createPristineRaidState();
+  fresh.cooldownResetAt = Date.now();
   memoryRaid = fresh;
   memoryPlayers.clear();
   memoryHumanCooldowns.clear();
@@ -137,6 +144,13 @@ export async function resetRaidState(): Promise<GlobalRaidState> {
   return fresh;
 }
 
+export async function resetGlobalCooldowns(): Promise<void> {
+  const raid = await getRaidState();
+  raid.cooldownResetAt = Date.now();
+  await saveRaidState(raid);
+  memoryHumanCooldowns.clear();
+}
+
 export async function saveRaidState(state: GlobalRaidState): Promise<void> {
   state.updatedAt = Date.now();
   memoryRaid = state;
@@ -150,13 +164,19 @@ export async function saveRaidState(state: GlobalRaidState): Promise<void> {
   }
 }
 
-// World ID nullifier-based cooldown check (Permanent human uniqueness)
+// World ID nullifier-based cooldown check (Permanent human uniqueness with reset support)
 export async function getHumanLastStrike(nullifierHash: string): Promise<number> {
+  const raid = await getRaidState();
+  const cutoff = raid.cooldownResetAt || 0;
+
   const store = getBlobsStore();
   if (store) {
     try {
       const record = await store.get(`human_${nullifierHash}`, { type: 'json' }) as { lastStrike: number } | null;
       if (record && record.lastStrike) {
+        if (record.lastStrike < cutoff) {
+          return 0;
+        }
         memoryHumanCooldowns.set(nullifierHash, record.lastStrike);
         return record.lastStrike;
       }
@@ -165,7 +185,8 @@ export async function getHumanLastStrike(nullifierHash: string): Promise<number>
     }
   }
 
-  return memoryHumanCooldowns.get(nullifierHash) || 0;
+  const mem = memoryHumanCooldowns.get(nullifierHash) || 0;
+  return mem < cutoff ? 0 : mem;
 }
 
 export async function recordHumanStrike(nullifierHash: string, timestamp: number): Promise<void> {

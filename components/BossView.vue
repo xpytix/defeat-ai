@@ -36,6 +36,7 @@ const props = defineProps<{
   hasBow?: boolean;
   isWhiteTheme?: boolean;
   totalStrikes?: number;
+  totalViews?: number;
   uniqueHumans?: number;
   recentStrikes?: any[];
   isPowerStriking?: boolean;
@@ -68,9 +69,9 @@ const bossImage = computed(() => {
   return `/bosses/boss_${props.level || 1}.png`;
 });
 
-// Live or zeroed out stats for Eye and Battle icons
+// Live stats for Eye (Views) and Battle (Attacks in Raid) icons
 const spectatorCount = computed(() => {
-  if (props.uniqueHumans !== undefined) return props.uniqueHumans.toString();
+  if (props.totalViews !== undefined) return props.totalViews.toString();
   return '0';
 });
 const activeAttackerCount = computed(() => {
@@ -261,14 +262,85 @@ watch(() => props.level, (newLevel) => {
   }
 });
 
+// 3D Parallax Tilt & Gyroscope Physics State
+let targetTiltX = 0;
+let targetTiltY = 0;
+let physicsFrameId: number | null = null;
+let isGyroActive = false;
+
+// Smooth physics interpolation loop (Spring / Lerp)
+const updatePhysics = () => {
+  tiltX.value += (targetTiltX - tiltX.value) * 0.12;
+  tiltY.value += (targetTiltY - tiltY.value) * 0.12;
+  physicsFrameId = requestAnimationFrame(updatePhysics);
+};
+
+// Gyroscope DeviceOrientation listener (Translates physical phone tilt into natural boss movement)
+const handleDeviceOrientation = (e: DeviceOrientationEvent) => {
+  if (e.beta === null || e.gamma === null) return;
+  isGyroActive = true;
+  // Natural phone holding position: beta ~ 40-50 deg (held upright tilted towards face), gamma ~ 0 deg
+  const normBeta = Math.max(-30, Math.min(30, e.beta - 45));
+  const normGamma = Math.max(-30, Math.min(30, e.gamma));
+
+  // Subtle 3D perspective rotation (max ±14 deg)
+  targetTiltX = (normBeta / 30) * -14;
+  targetTiltY = (normGamma / 30) * 14;
+};
+
+// Interactive 3D Parallax Tilt (Touch / Mouse fallback)
+const handlePointerMove = (e: MouseEvent | TouchEvent) => {
+  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  const halfW = window.innerWidth / 2;
+  const halfH = window.innerHeight / 2;
+  targetTiltX = Math.max(-10, Math.min(10, ((clientY - halfH) / halfH) * -10));
+  targetTiltY = Math.max(-10, Math.min(10, ((clientX - halfW) / halfW) * 10));
+};
+
+const resetTilt = () => {
+  if (!isGyroActive) {
+    targetTiltX = 0;
+    targetTiltY = 0;
+  }
+};
+
+const initGyroscope = () => {
+  if (typeof window === 'undefined') return;
+
+  // Modern iOS 13+ requires user permission check
+  if (typeof (DeviceOrientationEvent as any)?.requestPermission === 'function') {
+    const requestPermission = async () => {
+      try {
+        const perm = await (DeviceOrientationEvent as any).requestPermission();
+        if (perm === 'granted') {
+          window.addEventListener('deviceorientation', handleDeviceOrientation, { passive: true });
+        }
+      } catch (err) {
+        // Silently fall back to touch events
+      }
+    };
+    window.addEventListener('touchstart', requestPermission, { once: true, passive: true });
+    window.addEventListener('click', requestPermission, { once: true, passive: true });
+  } else if ('DeviceOrientationEvent' in window) {
+    window.addEventListener('deviceorientation', handleDeviceOrientation, { passive: true });
+  }
+};
+
 onMounted(() => {
   setupParticles();
   updateCountdown();
   countdownInterval = setInterval(updateCountdown, 1000);
+  initGyroscope();
+  physicsFrameId = requestAnimationFrame(updatePhysics);
 });
 
 onUnmounted(() => {
   if (countdownInterval) clearInterval(countdownInterval);
+  if (physicsFrameId) cancelAnimationFrame(physicsFrameId);
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('deviceorientation', handleDeviceOrientation);
+  }
   if (bgmAudio) {
     bgmAudio.pause();
     bgmAudio.src = '';
@@ -276,21 +348,6 @@ onUnmounted(() => {
     isAudioPlaying.value = false;
   }
 });
-
-// Interactive 3D Parallax Tilt
-const handlePointerMove = (e: MouseEvent | TouchEvent) => {
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-  const halfW = window.innerWidth / 2;
-  const halfH = window.innerHeight / 2;
-  tiltX.value = Math.max(-8, Math.min(8, ((clientY - halfH) / halfH) * -8));
-  tiltY.value = Math.max(-8, Math.min(8, ((clientX - halfW) / halfW) * 8));
-};
-
-const resetTilt = () => {
-  tiltX.value = 0;
-  tiltY.value = 0;
-};
 
 const lastRewardBanner = ref<{
   type: 'free' | 'power';
@@ -623,7 +680,7 @@ const formatTokens = (val: number) => {
           <img 
             :src="bossImage" 
             :alt="bossName" 
-            class="w-full h-full object-contain select-none pointer-events-none transition-all duration-150 scale-105 sm:scale-105"
+            class="w-full h-full object-contain select-none pointer-events-none transition-all duration-150 scale-105 sm:scale-105 animate-boss-hover"
             :class="[
               isHitFlash ? 'brightness-150 filter contrast-125 saturate-150 !scale-110' : '',
               isWhiteTheme ? 'mix-blend-multiply' : ''
@@ -881,5 +938,18 @@ const formatTokens = (val: number) => {
 
 .animate-rise-drift {
   animation: riseDrift linear infinite;
+}
+
+@keyframes bossHover {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(0.4deg);
+  }
+}
+
+.animate-boss-hover {
+  animation: bossHover 4.5s ease-in-out infinite;
 }
 </style>

@@ -6,6 +6,7 @@ import {
   savePlayerProfile, 
   getHumanLastStrike, 
   recordHumanStrike, 
+  resetGlobalCooldowns,
   BOSS_METADATA 
 } from '../utils/db';
 import { verifyWorldIdStrikeProof, type WorldIdProofPayload } from '../utils/worldId';
@@ -18,9 +19,26 @@ export default defineEventHandler(async (event) => {
     const query = getQuery(event);
     const playerId = (query.playerId as string | undefined) || 'anon-player';
     const nullifierHash = query.nullifierHash as string | undefined;
+    const isView = query.isView === '1' || query.isView === 'true';
+    const shouldResetCooldown = query.resetCooldown === '1' || query.resetCooldown === 'true';
+
+    if (shouldResetCooldown) {
+      await resetGlobalCooldowns();
+    }
 
     const raid = await getRaidState();
+    if (typeof raid.totalViews !== 'number') raid.totalViews = 0;
+
+    if (isView) {
+      raid.totalViews += 1;
+      await saveRaidState(raid);
+    }
+
     const player = await getPlayerProfile(playerId, nullifierHash);
+    if (raid.cooldownResetAt && player.lastFreeHitTime && player.lastFreeHitTime < raid.cooldownResetAt) {
+      player.lastFreeHitTime = 0;
+      await savePlayerProfile(player);
+    }
 
     let humanCooldownRemainingMs = 0;
     if (nullifierHash) {
@@ -62,6 +80,19 @@ export default defineEventHandler(async (event) => {
     // Sync item flags if provided
     if (typeof hasSword === 'boolean') player.hasSword = hasSword;
     if (typeof hasBow === 'boolean') player.hasBow = hasBow;
+
+    if (action === 'resetCooldown') {
+      await resetGlobalCooldowns();
+      player.lastFreeHitTime = 0;
+      await savePlayerProfile(player);
+      const freshRaid = await getRaidState();
+      return {
+        success: true,
+        message: 'Global cooldowns and claim timers reset successfully.',
+        raid: freshRaid,
+        player
+      };
+    }
 
     if (action === 'strike') {
       const now = Date.now();
