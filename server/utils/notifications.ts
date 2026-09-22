@@ -1,6 +1,6 @@
 import { getBlobsStore } from './db';
 
-const DEV_PORTAL_API_KEY = process.env.WORLD_DEVELOPER_API_KEY || 'api_a2V5XzA4OTIwOWZiZGE5MDNhZmNlZDY1ZGY2NzRjZDYzNzRjOnNrXzQ3MzE4OTk2NTdlYjA2ODU3Mjc4ZDVhYmYyM2UxOGQzZDNiODRiN2FiNDdlNGZkZA';
+const DEV_PORTAL_API_KEY = process.env.WORLD_DEVELOPER_API_KEY || '';
 const APP_ID = process.env.WORLD_APP_ID || 'app_00e63093c3a6d36ace61c9b587ffcdf8';
 
 const memorySubscribers = new Set<string>();
@@ -75,6 +75,11 @@ export async function sendWorldAppNotification(
   targetWallets?: string[],
   params?: NotificationParams
 ): Promise<{ success: boolean; result?: any; error?: string }> {
+    if (!DEV_PORTAL_API_KEY) {
+      console.warn('[Notifications] WORLD_DEVELOPER_API_KEY is not configured in environment variables.');
+      return { success: false, error: 'WORLD_DEVELOPER_API_KEY not configured' };
+    }
+
   try {
     let addresses = targetWallets && targetWallets.length > 0 ? targetWallets : await getSubscribedWallets();
 

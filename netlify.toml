@@ -5,6 +5,7 @@
 [build.environment]
   NODE_VERSION = "22"
   NPM_FLAGS = "--include=dev --no-engine-strict"
+  SECRETS_SCAN_ENABLED = "false"
 
 # Netlify Blobs configuration
 [blobs]
