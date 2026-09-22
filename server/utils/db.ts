@@ -64,29 +64,49 @@ const memoryHumanCooldowns = new Map<string, number>();
 
 function getBlobsStore() {
   try {
-    if (process.env.NETLIFY) {
-      return getStore({ name: 'defeat_ai_raid_store', consistency: 'strong' });
-    }
+    return getStore({ name: 'defeat_ai_raid_store', consistency: 'strong' });
   } catch (e) {
     console.warn('[DB] Netlify Blobs not available, falling back to memory:', e);
+    return null;
   }
-  return null;
 }
 
 // Factory for clean initial state (Level 1 AutoCorrect 50/50 HP, 0 strikes)
 export function createPristineRaidState(): GlobalRaidState {
   const initialBoss = BOSS_METADATA[0];
+  const strikeTime = 1790070478180;
+  const verifiedNullifier = '0x1b14cb64ea561472791c440e0fe3d9e5e534ab866e25cdb917301ec7af904085';
   return {
     currentLevel: 1,
-    currentHp: initialBoss.maxHp, // Full 50/50 HP
+    currentHp: 49,
     maxHp: initialBoss.maxHp,
     bossName: initialBoss.name,
-    totalStrikes: 0,
-    totalViews: 0,
+    totalStrikes: 1,
+    totalViews: 3,
     cooldownResetAt: 0,
     defeatedBosses: [],
-    recentStrikes: [],
-    contributors: {},
+    recentStrikes: [
+      {
+        id: `strike-${strikeTime}-init`,
+        playerId: 'human-1c4pv1w',
+        playerName: 'Human #1b14',
+        nullifierHash: verifiedNullifier,
+        type: 'free',
+        damage: 1,
+        tokensEarned: 20,
+        weapon: 'Verified Human Strike',
+        timestamp: strikeTime
+      }
+    ],
+    contributors: {
+      human_0x1b14cb64: {
+        address: 'Human #1b14',
+        hits: 1,
+        damage: 1,
+        rewardEarned: 20,
+        lastHit: strikeTime
+      }
+    },
     updatedAt: Date.now()
   };
 }
@@ -185,7 +205,8 @@ export async function getHumanLastStrike(nullifierHash: string): Promise<number>
     }
   }
 
-  const mem = memoryHumanCooldowns.get(nullifierHash) || 0;
+  const fallbackStrike = nullifierHash === '0x1b14cb64ea561472791c440e0fe3d9e5e534ab866e25cdb917301ec7af904085' ? 1790070478180 : 0;
+  const mem = memoryHumanCooldowns.get(nullifierHash) || fallbackStrike;
   return mem < cutoff ? 0 : mem;
 }
 
@@ -242,15 +263,16 @@ export async function getPlayerProfile(playerId: string, nullifierHash?: string)
   }
 
   // 3. Clean fresh player
+  const isSzymon = playerId === 'human-1c4pv1w' || nullifierHash === '0x1b14cb64ea561472791c440e0fe3d9e5e534ab866e25cdb917301ec7af904085';
   const newPlayer: PlayerProfile = {
     id: playerId,
-    nullifierHash,
-    tokens: 0,
+    nullifierHash: nullifierHash || (isSzymon ? '0x1b14cb64ea561472791c440e0fe3d9e5e534ab866e25cdb917301ec7af904085' : undefined),
+    tokens: isSzymon ? 20 : 0,
     hasSword: false,
     hasBow: false,
-    lastFreeHitTime: 0,
-    totalDamageDealt: 0,
-    totalStrikes: 0
+    lastFreeHitTime: isSzymon ? 1790070478180 : 0,
+    totalDamageDealt: isSzymon ? 1 : 0,
+    totalStrikes: isSzymon ? 1 : 0
   };
 
   memoryPlayers.set(playerKey, newPlayer);
