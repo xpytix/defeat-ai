@@ -224,58 +224,70 @@ export async function recordHumanStrike(nullifierHash: string, timestamp: number
 
 export async function getPlayerProfile(playerId: string, nullifierHash?: string): Promise<PlayerProfile> {
   const store = getBlobsStore();
+  let profile: PlayerProfile | null = null;
 
   // 1. Try nullifierHash first
   if (nullifierHash) {
     const key = `human_player_${nullifierHash}`;
     if (store) {
       try {
-        const data = await store.get(key, { type: 'json' }) as PlayerProfile | null;
-        if (data) {
-          memoryPlayers.set(key, data);
-          return data;
-        }
+        profile = await store.get(key, { type: 'json' }) as PlayerProfile | null;
       } catch (err) {
         console.warn(`[DB] Error reading player ${key} from blobs:`, err);
       }
     }
-    if (memoryPlayers.has(key)) {
-      return memoryPlayers.get(key)!;
+    if (!profile && memoryPlayers.has(key)) {
+      profile = memoryPlayers.get(key)!;
     }
   }
 
-  // 2. Try playerId
-  const playerKey = `player_${playerId}`;
-  if (store) {
-    try {
-      const data = await store.get(playerKey, { type: 'json' }) as PlayerProfile | null;
-      if (data) {
-        memoryPlayers.set(playerKey, data);
-        return data;
+  // 2. Try playerId / walletAddress
+  if (!profile && playerId) {
+    const playerKey = `player_${playerId}`;
+    if (store) {
+      try {
+        profile = await store.get(playerKey, { type: 'json' }) as PlayerProfile | null;
+      } catch (err) {
+        console.warn(`[DB] Error reading player ${playerKey} from blobs:`, err);
       }
-    } catch (err) {
-      console.warn(`[DB] Error reading player ${playerKey} from blobs:`, err);
+    }
+    if (!profile && memoryPlayers.has(playerKey)) {
+      profile = memoryPlayers.get(playerKey)!;
     }
   }
 
-  if (memoryPlayers.has(playerKey)) {
-    return memoryPlayers.get(playerKey)!;
+  // 3. If loaded, also check if alternate key has weapon upgrades and merge them
+  if (profile) {
+    if (playerId) {
+      const altKey = `player_${playerId}`;
+      const altData = memoryPlayers.get(altKey) || (store ? await store.get(altKey, { type: 'json' }).catch(() => null) as PlayerProfile | null : null);
+      if (altData) {
+        if (altData.hasSword) profile.hasSword = true;
+        if (altData.hasBow) profile.hasBow = true;
+      }
+    }
+    if (nullifierHash && !profile.nullifierHash) profile.nullifierHash = nullifierHash;
+    if (playerId && playerId.startsWith('0x') && !profile.address) profile.address = playerId;
+    return profile;
   }
 
-  // 3. Clean fresh player
-  const isSzymon = playerId === 'human-1c4pv1w' || nullifierHash === '0x1b14cb64ea561472791c440e0fe3d9e5e534ab866e25cdb917301ec7af904085';
+  // 4. Fresh player
+  const isSzymon = playerId === 'human-1c4pv1w' || 
+                   nullifierHash === '0x1b14cb64ea561472791c440e0fe3d9e5e534ab866e25cdb917301ec7af904085' ||
+                   (typeof playerId === 'string' && playerId.toLowerCase() === '0x7a9d7ce2a5c3dd2e8f73118e89a15a1aac3cdc71'.toLowerCase());
+
   const newPlayer: PlayerProfile = {
     id: playerId,
     nullifierHash: nullifierHash || (isSzymon ? '0x1b14cb64ea561472791c440e0fe3d9e5e534ab866e25cdb917301ec7af904085' : undefined),
     tokens: isSzymon ? 20 : 0,
-    hasSword: false,
+    hasSword: isSzymon, // Test weapon active for Szymon
     hasBow: false,
     lastFreeHitTime: isSzymon ? 1790070478180 : 0,
     totalDamageDealt: isSzymon ? 1 : 0,
     totalStrikes: isSzymon ? 1 : 0
   };
 
-  memoryPlayers.set(playerKey, newPlayer);
+  memoryPlayers.set(`player_${playerId}`, newPlayer);
   if (nullifierHash) {
     memoryPlayers.set(`human_player_${nullifierHash}`, newPlayer);
   }
@@ -284,9 +296,12 @@ export async function getPlayerProfile(playerId: string, nullifierHash?: string)
 
 export async function savePlayerProfile(profile: PlayerProfile): Promise<void> {
   const store = getBlobsStore();
-  const keys = [`player_${profile.id}`];
-  if (profile.nullifierHash) {
-    keys.push(`human_player_${profile.nullifierHash}`);
+  const keys = new Set<string>();
+  if (profile.id) keys.add(`player_${profile.id}`);
+  if (profile.nullifierHash) keys.add(`human_player_${profile.nullifierHash}`);
+  if (profile.address) {
+    keys.add(`player_${profile.address}`);
+    keys.add(`player_${profile.address.toLowerCase()}`);
   }
 
   for (const key of keys) {

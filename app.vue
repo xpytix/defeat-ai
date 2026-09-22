@@ -660,6 +660,7 @@ const handleBuyItem = async (item: 'sword' | 'bow') => {
             item,
             playerId: playerId.value,
             walletAddress: walletAddress.value,
+            nullifierHash: verifiedNullifier.value,
             paymentPayload: payload
           }
         });

@@ -67,16 +67,16 @@ export default defineEventHandler(async (event) => {
       playerId = 'anon-player', 
       playerName, 
       walletAddress,
+      nullifierHash,
       type = 'free', 
       proofPayload,
       paymentPayload,
-      hasSword, 
-      hasBow 
     } = body || {};
 
     const raid = await getRaidState();
-    let player = await getPlayerProfile(playerId);
+    let player = await getPlayerProfile(playerId, nullifierHash);
 
+    if (nullifierHash && !player.nullifierHash) player.nullifierHash = nullifierHash;
     if (walletAddress && typeof walletAddress === 'string' && walletAddress.startsWith('0x')) {
       player.address = walletAddress;
     }
