@@ -29,6 +29,7 @@ export interface GlobalRaidState {
   totalViews: number;
   cooldownResetAt?: number;
   defeatedBosses: number[];
+  notified50PercentLevel?: number;
   recentStrikes: StrikeRecord[];
   contributors: Record<string, ContributorStats>;
   updatedAt: number;
@@ -62,7 +63,7 @@ let memoryRaid: GlobalRaidState | null = null;
 const memoryPlayers = new Map<string, PlayerProfile>();
 const memoryHumanCooldowns = new Map<string, number>();
 
-function getBlobsStore() {
+export function getBlobsStore() {
   try {
     return getStore({ name: 'defeat_ai_raid_store', consistency: 'strong' });
   } catch (e) {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { MiniKit, VerificationLevel, Tokens, tokenToDecimals } from '@worldcoin/minikit-js';
+import { MiniKit, VerificationLevel, Tokens, tokenToDecimals, Permission } from '@worldcoin/minikit-js';
 import BossView from '~/components/BossView.vue';
 import CharactersView from '~/components/CharactersView.vue';
 import BottomNav from '~/components/BottomNav.vue';
@@ -92,6 +92,7 @@ const recentStrikes = ref<any[]>([]);
 const hasSword = ref(false); // Quantum Plasma Blade: 2x daily strike damage (-2 HP) & 2x tokens (+40 $DEF)
 const hasBow = ref(false);   // Tachyon Chrono-Bow: -50% cooldown (12h instead of 24h)
 const isShopOpen = ref(false);
+const isNotificationsEnabled = ref(false);
 
 // Game State (Starts pre-warmed at Level 1 AutoCorrect, seamlessly matching live state)
 const currentBossLevel = ref(1);
@@ -282,6 +283,12 @@ const handleSetWalletAddress = async (addr: string) => {
   setPersisted('defeat_ai_player_id', addr);
   fetchOnChainBalance(addr);
   await fetchRaidState(false);
+  if (isNotificationsEnabled.value) {
+    $fetch('/api/notifications', {
+      method: 'POST',
+      body: { action: 'subscribe', walletAddress: addr }
+    }).catch(() => {});
+  }
 };
 
 const handleDisconnectWallet = () => {
@@ -306,6 +313,80 @@ const handleOpenShop = () => {
 const handleRefreshShop = (address?: string) => {
   fetchOnChainBalance(address || walletAddress.value);
   fetchRaidState(false);
+};
+
+// Push Notifications Toggle & Permissions Manager (MiniKit)
+const handleToggleNotifications = async () => {
+  if (isNotificationsEnabled.value) {
+    showToast('🔔 Notifications active! Sending test notification...');
+    try {
+      const res: any = await $fetch('/api/notifications', {
+        method: 'POST',
+        body: {
+          action: 'send',
+          type: 'daily_ready',
+          walletAddress: walletAddress.value || undefined
+        }
+      });
+      if (res?.success) {
+        showToast('🔔 Test notification sent to World App!');
+      } else {
+        showToast('🔔 Push notifications active for this device.');
+      }
+    } catch (e) {
+      showToast('🔔 Push notifications active.');
+    }
+    return;
+  }
+
+  if (MiniKit.isInstalled()) {
+    try {
+      showToast('Requesting notification permission in World App...');
+      const res = await MiniKit.commandsAsync.requestPermission({
+        permission: Permission.Notifications
+      });
+
+      const payload = res?.finalPayload as any;
+      if (payload?.status === 'success' || payload?.already_granted) {
+        isNotificationsEnabled.value = true;
+        setPersisted('defeat_ai_notifications_enabled', 'true');
+        if (walletAddress.value) {
+          await $fetch('/api/notifications', {
+            method: 'POST',
+            body: { action: 'subscribe', walletAddress: walletAddress.value }
+          }).catch(() => {});
+        }
+        showToast('🔔 Notifications enabled! Alerts for ready claims & 50% HP active.');
+      } else if (payload?.error_code === 'user_rejected') {
+        showToast('Notification permission was declined.');
+      } else if (payload?.error_code === 'already_requested') {
+        showToast('Please enable notifications in your phone Settings > World App.');
+      } else {
+        showToast('Could not enable notifications.');
+      }
+    } catch (err: any) {
+      showToast(`Notification error: ${err.message || 'Unknown'}`);
+    }
+  } else {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        isNotificationsEnabled.value = true;
+        setPersisted('defeat_ai_notifications_enabled', 'true');
+        if (walletAddress.value) {
+          await $fetch('/api/notifications', {
+            method: 'POST',
+            body: { action: 'subscribe', walletAddress: walletAddress.value }
+          }).catch(() => {});
+        }
+        showToast('🔔 Web push notifications active!');
+      } else {
+        showToast('Notification permission denied');
+      }
+    } else {
+      showToast('Open in World App to enable native push notifications');
+    }
+  }
 };
 
 // Load saved local state & initialize MiniKit + Global Raid Sync
@@ -371,6 +452,27 @@ onMounted(() => {
 
     const savedBow = getPersisted('defeat_ai_has_bow');
     if (savedBow !== null) hasBow.value = savedBow === 'true';
+
+    const savedNotifs = getPersisted('defeat_ai_notifications_enabled');
+    if (savedNotifs === 'true') isNotificationsEnabled.value = true;
+
+    if (isInsideWorldApp.value && MiniKit.isInstalled()) {
+      try {
+        MiniKit.commandsAsync.getPermissions().then((permRes: any) => {
+          if (permRes?.finalPayload?.status === 'success') {
+            const hasPerm = (permRes.finalPayload as any).permissions?.notifications === true;
+            isNotificationsEnabled.value = hasPerm;
+            setPersisted('defeat_ai_notifications_enabled', hasPerm ? 'true' : 'false');
+            if (hasPerm && walletAddress.value) {
+              $fetch('/api/notifications', {
+                method: 'POST',
+                body: { action: 'subscribe', walletAddress: walletAddress.value }
+              }).catch(() => {});
+            }
+          }
+        }).catch(() => {});
+      } catch (e) {}
+    }
 
     // Pre-warm cached HP and strikes immediately
     const cachedHp = getPersisted('defeat_ai_cached_hp');
@@ -922,8 +1024,10 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
         :recent-strikes="recentStrikes"
         :is-power-striking="isPowerStriking"
         :is-verifying="isVerifying"
+        :is-notifications-enabled="isNotificationsEnabled"
         @hit="handleHit"
         @open-shop="handleOpenShop"
+        @toggle-notifications="handleToggleNotifications"
       />
       <CharactersView
         v-else-if="activeTab === 'characters'"
@@ -950,11 +1054,13 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
       :has-sword="hasSword"
       :has-bow="hasBow"
       :is-white-theme="isWhiteTheme"
+      :is-notifications-enabled="isNotificationsEnabled"
       @close="isShopOpen = false"
       @buy-item="handleBuyItem"
       @connect-wallet="handleConnectWallet"
       @disconnect-wallet="handleDisconnectWallet"
       @refresh-balance="handleRefreshShop"
+      @toggle-notifications="handleToggleNotifications"
     />
 
     <!-- Direct Reward Claim Modal (Variant B: EIP-712 On-Chain Claim) -->

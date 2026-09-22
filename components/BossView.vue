@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { Eye, Swords, Heart, Coins, Zap, ShieldAlert, Volume2, VolumeX } from 'lucide-vue-next';
+import { Eye, Swords, Heart, Coins, Zap, ShieldAlert, Volume2, VolumeX, Bell, BellRing } from 'lucide-vue-next';
 
 interface FloatingDamage {
   id: number;
@@ -41,11 +41,13 @@ const props = defineProps<{
   recentStrikes?: any[];
   isPowerStriking?: boolean;
   isVerifying?: boolean;
+  isNotificationsEnabled?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'hit', type: 'free' | 'power'): void;
   (e: 'openShop'): void;
+  (e: 'toggleNotifications'): void;
 }>();
 
 // 3D Parallax Tilt State
@@ -492,6 +494,20 @@ const formatTokens = (val: number) => {
           >
             <Volume2 v-if="isAudioPlaying" class="w-3.5 h-3.5 animate-pulse" />
             <VolumeX v-else class="w-3.5 h-3.5 opacity-60" />
+          </button>
+
+          <!-- Push Notifications Toggle Button -->
+          <button
+            @click.stop="emit('toggleNotifications')"
+            class="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center transition-all active:scale-90 ml-0.5 border relative"
+            :class="isNotificationsEnabled 
+              ? (isWhiteTheme ? 'bg-cyan-100 text-cyan-800 border-cyan-300' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40 shadow-[0_0_8px_rgba(6,182,212,0.3)]') 
+              : (isWhiteTheme ? 'bg-black/5 text-zinc-400 hover:text-black border-black/10' : 'bg-white/5 text-zinc-500 hover:text-white border-white/10')"
+            :title="isNotificationsEnabled ? 'Push notifications active' : 'Turn on notifications (Daily ready & Boss 50% HP)'"
+          >
+            <BellRing v-if="isNotificationsEnabled" class="w-3.5 h-3.5 text-cyan-400" />
+            <Bell v-else class="w-3.5 h-3.5 opacity-60" />
+            <span v-if="isNotificationsEnabled" class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cyan-400 border border-black shadow-sm" />
           </button>
         </div>
 

@@ -13,6 +13,7 @@ import {
 import { verifyWorldIdStrikeProof, type WorldIdProofPayload } from '../utils/worldId';
 import { distributeDefRewardOnChain, generateClaimVoucher } from '../utils/distributor';
 import { verifyWorldAppPayment } from '../utils/payment';
+import { sendWorldAppNotification } from '../utils/notifications';
 
 export default defineEventHandler(async (event) => {
   const method = event.node.req.method;
@@ -214,6 +215,18 @@ export default defineEventHandler(async (event) => {
       raid.currentHp = Math.max(0, raid.currentHp - damage);
       raid.totalStrikes += 1;
 
+      // 1. Notification: Boss down to 50% HP Alert (triggers once per boss level)
+      if (raid.currentHp > 0 && raid.currentHp <= Math.floor(raid.maxHp * 0.5) && raid.notified50PercentLevel !== raid.currentLevel) {
+        raid.notified50PercentLevel = raid.currentLevel;
+        sendWorldAppNotification('boss_50_pct', undefined, { 
+          bossName: raid.bossName,
+          currentHp: raid.currentHp,
+          maxHp: raid.maxHp
+        }).catch((err) => {
+          console.warn('[Notification] Failed to send 50% HP alert:', err);
+        });
+      }
+
       // Boss Defeated progression
       let bossDefeated = false;
       if (raid.currentHp <= 0) {
@@ -228,6 +241,14 @@ export default defineEventHandler(async (event) => {
           raid.maxHp = nextBoss.maxHp;
           raid.currentHp = nextBoss.maxHp;
           raid.bossName = nextBoss.name;
+          raid.notified50PercentLevel = undefined; // Reset 50% flag for the newly spawned boss
+
+          // 2. Notification: New Boss Spawned!
+          sendWorldAppNotification('new_boss', undefined, { 
+            bossName: nextBoss.name 
+          }).catch((err) => {
+            console.warn('[Notification] Failed to send new boss notification:', err);
+          });
         }
       }
 

@@ -10,6 +10,8 @@ import {
   Wallet, 
   RefreshCw, 
   LogOut,
+  Bell,
+  BellRing,
   Link as LinkIcon 
 } from 'lucide-vue-next';
 
@@ -23,6 +25,7 @@ const props = defineProps<{
   hasSword: boolean;
   hasBow: boolean;
   isWhiteTheme?: boolean;
+  isNotificationsEnabled?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -31,6 +34,7 @@ const emit = defineEmits<{
   (e: 'connectWallet'): void;
   (e: 'disconnectWallet'): void;
   (e: 'refreshBalance', address?: string): void;
+  (e: 'toggleNotifications'): void;
 }>();
 
 const isProcessing = ref<string | null>(null);
@@ -222,6 +226,46 @@ const formatFullNumber = (val?: number) => {
           <!-- Exact token count subtitle if > 100k -->
           <div v-if="onChainTokens && onChainTokens > 10000" class="text-[10px] font-mono opacity-50 px-1">
             Exact: {{ formatFullNumber(onChainTokens) }} $DEF
+          </div>
+
+          <!-- Push Notifications Status Card -->
+          <div 
+            class="p-3 rounded-xl border flex items-center justify-between gap-2 shadow-inner transition-colors"
+            :class="isWhiteTheme ? 'bg-white border-black/10' : 'bg-zinc-950/80 border-white/10'"
+          >
+            <div class="flex items-center gap-2 min-w-0">
+              <div 
+                class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border"
+                :class="isNotificationsEnabled ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400' : 'bg-zinc-800/40 border-white/10 text-zinc-500'"
+              >
+                <BellRing v-if="isNotificationsEnabled" class="w-4 h-4" />
+                <Bell v-else class="w-4 h-4" />
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs font-mono font-bold flex items-center gap-1.5">
+                  <span>Push Alerts</span>
+                  <span 
+                    class="text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider"
+                    :class="isNotificationsEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-400'"
+                  >
+                    {{ isNotificationsEnabled ? 'Active' : 'Off' }}
+                  </span>
+                </div>
+                <p class="text-[9px] font-mono text-zinc-400 truncate">
+                  Daily strike ready, boss 50% HP & new spawns
+                </p>
+              </div>
+            </div>
+
+            <button
+              @click="emit('toggleNotifications')"
+              class="text-[10px] font-mono font-bold px-2.5 py-1 rounded-lg border shrink-0 transition-all active:scale-95"
+              :class="isNotificationsEnabled 
+                ? (isWhiteTheme ? 'bg-zinc-100 border-black/10 text-zinc-700 hover:bg-zinc-200' : 'bg-white/5 border-white/15 text-zinc-300 hover:bg-white/10') 
+                : 'bg-cyan-500 text-black border-cyan-400 hover:bg-cyan-400 font-extrabold shadow-sm'"
+            >
+              {{ isNotificationsEnabled ? 'Test Alert' : 'Enable' }}
+            </button>
           </div>
         </div>
 
