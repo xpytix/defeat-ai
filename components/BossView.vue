@@ -37,6 +37,9 @@ const props = defineProps<{
   isWhiteTheme?: boolean;
   totalStrikes?: number;
   uniqueHumans?: number;
+  recentStrikes?: any[];
+  isPowerStriking?: boolean;
+  isVerifying?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -48,6 +51,11 @@ const emit = defineEmits<{
 const tiltX = ref(0);
 const tiltY = ref(0);
 const isShaking = ref(false);
+const isHitFlash = ref(false);
+const ghostHpPercent = ref(100);
+const lastDamageNumber = ref<number | null>(null);
+let ghostTimeout: any = null;
+let flashTimeout: any = null;
 const floatingDamages = ref<FloatingDamage[]>([]);
 const countdownText = ref('24:00:00');
 let countdownInterval: any = null;
@@ -145,6 +153,44 @@ const hpPercent = computed(() => {
   if (props.maxHp <= 0) return 0;
   return Math.max(0, Math.min(100, Math.round((props.currentHp / props.maxHp) * 100)));
 });
+
+// Watch currentHp to trigger fighting-game style ghost damage bar & flash
+watch(() => props.currentHp, (newHp, oldHp) => {
+  if (oldHp !== undefined && newHp < oldHp) {
+    const delta = oldHp - newHp;
+    lastDamageNumber.value = delta;
+    isHitFlash.value = true;
+    if (flashTimeout) clearTimeout(flashTimeout);
+    flashTimeout = setTimeout(() => {
+      isHitFlash.value = false;
+      lastDamageNumber.value = null;
+    }, 1200);
+
+    // Ghost HP Bar: keep the ghost bar at old level briefly so the difference is visually obvious
+    if (ghostTimeout) clearTimeout(ghostTimeout);
+    ghostTimeout = setTimeout(() => {
+      ghostHpPercent.value = hpPercent.value;
+    }, 450);
+  } else {
+    ghostHpPercent.value = hpPercent.value;
+  }
+}, { immediate: true });
+
+// Live combat ticker helper from recent global strikes
+const latestStrike = computed(() => {
+  if (!props.recentStrikes || props.recentStrikes.length === 0) return null;
+  return props.recentStrikes[0];
+});
+
+const formatTimeAgo = (timestamp?: number) => {
+  if (!timestamp) return '';
+  const sec = Math.max(1, Math.floor((Date.now() - timestamp) / 1000));
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hrs = Math.floor(min / 60);
+  return `${hrs}h ago`;
+};
 
 // Countdown logic
 const updateCountdown = () => {
@@ -277,20 +323,26 @@ const playStrikeSfx = (type: 'free' | 'power') => {
 // Play Attack Animation (Triggered ONLY after MiniKit verification/payment confirms)
 const playAttackAnimation = (type: 'free' | 'power', damage: number, tokensEarned: number) => {
   isShaking.value = true;
+  isHitFlash.value = true;
   setTimeout(() => {
     isShaking.value = false;
-  }, 350);
+  }, 400);
+  setTimeout(() => {
+    isHitFlash.value = false;
+  }, 700);
 
   const id = Date.now() + Math.random();
   const clientX = window.innerWidth / 2;
   const clientY = window.innerHeight / 2 - 40;
 
+  const strikeText = type === 'power' 
+    ? (props.hasSword ? `-4 CRIT (+${tokensEarned} $DEF)` : `-2 CRIT (+${tokensEarned} $DEF)`) 
+    : (props.hasSword ? `-2 PLASMA (+${tokensEarned} $DEF)` : `-1 HP (+${tokensEarned} $DEF)`);
+
   floatingDamages.value.push({
     id,
-    value: type === 'power' 
-      ? `-2 CRIT (+${tokensEarned} $DEF)` 
-      : (props.hasSword ? `-2 PLASMA (+${tokensEarned} $DEF)` : `-1 HP (+${tokensEarned} $DEF)`),
-    x: clientX + (Math.random() * 40 - 20),
+    value: strikeText,
+    x: clientX,
     y: clientY - 30
   });
 
@@ -480,7 +532,6 @@ const formatTokens = (val: number) => {
       <div 
         @click="freeHitAvailable ? triggerHit('free', $event) : triggerHit('power', $event)"
         class="relative w-full h-full max-h-full max-w-[min(94vw,430px)] sm:max-w-[500px] md:max-w-[580px] aspect-square cursor-pointer flex items-center justify-center transition-transform duration-100 ease-out active:scale-95 my-auto"
-        :class="{ 'animate-shake': isShaking }"
         :style="{
           transform: `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,
         }"
@@ -564,22 +615,33 @@ const formatTokens = (val: number) => {
 
         </div>
 
-        <!-- The Boss Image: Clean, Crisp & Immediate (No Fade Lag or Gradient Clipping) -->
-        <div class="relative w-full h-full flex items-center justify-center overflow-visible">
+        <!-- The Boss Image & Hit Reaction Wrapper: Handles Shake & Hit Flash independently from 3D Perspective -->
+        <div 
+          class="relative w-full h-full flex items-center justify-center overflow-visible transition-transform duration-75"
+          :class="{ 'animate-shake': isShaking }"
+        >
           <img 
             :src="bossImage" 
             :alt="bossName" 
-            class="w-full h-full object-contain select-none pointer-events-none transition-transform duration-100 scale-105 sm:scale-105"
+            class="w-full h-full object-contain select-none pointer-events-none transition-all duration-150 scale-105 sm:scale-105"
             :class="[
-              isShaking ? 'brightness-125 filter contrast-125 !scale-110' : '',
+              isHitFlash ? 'brightness-150 filter contrast-125 saturate-150 !scale-110' : '',
               isWhiteTheme ? 'mix-blend-multiply' : ''
             ]"
           />
 
           <!-- Red Hit Flash Overlay -->
+          <transition enter-active-class="transition duration-75 ease-out" leave-active-class="transition duration-300 ease-in">
+            <div 
+              v-if="isHitFlash"
+              class="absolute inset-0 bg-rose-600/35 pointer-events-none rounded-full blur-2xl animate-pulse"
+            />
+          </transition>
+
+          <!-- Impact Shockwave Ring -->
           <div 
-            v-if="isShaking"
-            class="absolute inset-0 bg-rose-600/30 pointer-events-none transition-opacity rounded-full blur-2xl"
+            v-if="isHitFlash" 
+            class="absolute inset-4 rounded-full border-2 border-rose-500/80 pointer-events-none animate-ping"
           />
         </div>
 
@@ -607,12 +669,12 @@ const formatTokens = (val: number) => {
 
       </div>
 
-      <!-- Floating Damage Numbers -->
+      <!-- Floating Damage Numbers (Centered Directly over Boss) -->
       <div 
         v-for="d in floatingDamages" 
         :key="d.id"
-        class="fixed z-50 pointer-events-none font-mono font-black text-2xl sm:text-3xl animate-float-damage"
-        :class="d.value.includes('CRIT') ? 'text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.9)]' : (isWhiteTheme ? 'text-cyan-600 drop-shadow-[0_0_10px_rgba(8,145,178,0.6)]' : 'text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.9)]')"
+        class="fixed z-50 pointer-events-none font-mono font-black text-2xl sm:text-4xl animate-float-damage -translate-x-1/2 -translate-y-1/2 select-none"
+        :class="d.value.includes('CRIT') ? 'text-amber-300 drop-shadow-[0_0_20px_rgba(251,191,36,1)]' : (isWhiteTheme ? 'text-cyan-600 drop-shadow-[0_0_12px_rgba(8,145,178,0.7)]' : 'text-cyan-400 drop-shadow-[0_0_15px_rgba(34,211,238,1)]')"
         :style="{ left: `${d.x}px`, top: `${d.y}px` }"
       >
         {{ d.value }}
@@ -666,10 +728,18 @@ const formatTokens = (val: number) => {
           class="flex items-center gap-1.5 font-black text-xs sm:text-sm tracking-wider"
           :class="isWhiteTheme ? 'text-zinc-950' : 'text-white'"
         >
-          <Heart class="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+          <Heart class="w-3.5 h-3.5 text-rose-500 fill-rose-500" :class="{ 'scale-125 transition-transform': isHitFlash }" />
           <span>{{ currentHp.toLocaleString() }}</span>
           <span :class="isWhiteTheme ? 'text-zinc-400' : 'text-zinc-600'">/</span>
           <span class="font-normal" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">{{ maxHp.toLocaleString() }} HP</span>
+
+          <!-- Flashing Damage Delta Badge -->
+          <span 
+            v-if="lastDamageNumber" 
+            class="ml-1 text-[11px] font-black text-rose-500 animate-bounce tracking-tight"
+          >
+            -{{ lastDamageNumber }} HP!
+          </span>
         </div>
         <span 
           class="text-xs font-mono font-black"
@@ -679,13 +749,21 @@ const formatTokens = (val: number) => {
         </span>
       </div>
 
-      <!-- Sleek HP Progress Bar with Gradient -->
+      <!-- Fighting Game Dual-Layer HP Progress Bar -->
       <div 
-        class="w-full h-2 sm:h-2.5 rounded-full overflow-hidden p-0.5 relative shadow-inner transition-colors"
+        class="w-full h-2.5 sm:h-3 rounded-full overflow-hidden p-0.5 relative shadow-inner transition-colors"
         :class="isWhiteTheme ? 'bg-zinc-200 border border-black/10' : 'bg-zinc-900/90 border border-white/10'"
       >
+        <!-- Ghost Damage Bar (trails behind to show exact chunk lost) -->
         <div 
-          class="h-full rounded-full transition-all duration-300"
+          class="absolute top-0.5 bottom-0.5 left-0.5 rounded-full transition-all duration-700 ease-out pointer-events-none"
+          :class="isWhiteTheme ? 'bg-rose-400/90' : 'bg-rose-500/80'"
+          :style="{ width: `calc(${ghostHpPercent}% - 4px)` }"
+        />
+
+        <!-- Real-time HP Bar -->
+        <div 
+          class="relative h-full rounded-full transition-all duration-300"
           :class="level === 8 
             ? 'bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 shadow-sm' 
             : hpPercent > 30 
@@ -693,6 +771,23 @@ const formatTokens = (val: number) => {
               : 'bg-red-500 animate-pulse'"
           :style="{ width: `${hpPercent}%` }"
         />
+      </div>
+
+      <!-- Live Combat Ticker: Shows Recent Strikes across all players -->
+      <div 
+        v-if="latestStrike"
+        class="flex items-center justify-between text-[10px] font-mono tracking-tight pt-1 px-1 transition-opacity duration-300"
+        :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'"
+      >
+        <div class="flex items-center gap-1.5 truncate">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+          <span class="font-bold truncate" :class="isWhiteTheme ? 'text-zinc-900' : 'text-zinc-200'">{{ latestStrike.playerName }}</span>
+          <span class="shrink-0 font-extrabold" :class="latestStrike.type === 'power' ? 'text-amber-400' : 'text-cyan-400'">
+            -{{ latestStrike.damage }} HP
+          </span>
+          <span class="shrink-0 text-zinc-500">({{ latestStrike.weapon || (latestStrike.type === 'power' ? 'Power Strike' : 'Daily Strike') }})</span>
+        </div>
+        <span class="shrink-0 text-[9px] text-zinc-500 ml-2">{{ formatTimeAgo(latestStrike.timestamp) }}</span>
       </div>
     </div>
 
@@ -703,12 +798,14 @@ const formatTokens = (val: number) => {
       <button 
         v-if="freeHitAvailable"
         @click="triggerHit('free', $event)"
-        class="w-full py-3 sm:py-3.5 px-5 rounded-2xl font-black text-xs sm:text-sm tracking-wider uppercase active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+        :disabled="isVerifying"
+        class="w-full py-3 sm:py-3.5 px-5 rounded-2xl font-black text-xs sm:text-sm tracking-wider uppercase active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
         :class="isWhiteTheme 
           ? 'bg-black text-white hover:bg-zinc-800 shadow-[0_4px_20px_rgba(0,0,0,0.2)] border border-black' 
           : 'bg-gradient-to-r from-white via-zinc-100 to-zinc-200 text-black hover:bg-white shadow-[0_0_20px_rgba(255,255,255,0.2)] border border-white'"
       >
-        <span>💥 {{ hasSword ? 'PLASMA STRIKE (-2 HP)' : 'STRIKE & CLAIM' }} (+{{ hasSword ? 40 : 20 }} $DEF)</span>
+        <span v-if="isVerifying" class="animate-pulse">👁️ VERIFYING WORLD ID...</span>
+        <span v-else>💥 {{ hasSword ? 'PLASMA STRIKE (-2 HP)' : 'STRIKE & CLAIM' }} (+{{ hasSword ? 40 : 20 }} $DEF)</span>
       </button>
 
       <!-- COUNTDOWN TIMER IF ALREADY CLAIMED TODAY -->
@@ -737,14 +834,17 @@ const formatTokens = (val: number) => {
       <!-- POWER STRIKE BUTTON (2 WLD = ATTACK + 20 TOKENS) -->
       <button 
         @click="triggerHit('power', $event)"
-        class="w-full py-2.5 sm:py-3 px-4 rounded-2xl active:scale-[0.98] transition-all flex items-center justify-between shadow-sm"
+        :disabled="isPowerStriking"
+        class="w-full py-2.5 sm:py-3 px-4 rounded-2xl active:scale-[0.98] transition-all flex items-center justify-between shadow-sm cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
         :class="isWhiteTheme 
           ? 'bg-black/[0.03] hover:bg-black/[0.06] border border-cyan-600 text-zinc-950' 
           : 'bg-white/[0.03] hover:bg-white/[0.08] border border-cyan-500/30 hover:border-cyan-500/60 text-zinc-300 hover:text-white'"
       >
         <div class="flex items-center gap-2">
-          <Zap class="w-3.5 h-3.5 text-cyan-500 fill-cyan-500" />
-          <span class="text-[11px] sm:text-xs font-mono tracking-wider font-extrabold uppercase">Power Strike (+20 $DEF)</span>
+          <Zap class="w-3.5 h-3.5 text-cyan-500 fill-cyan-500" :class="{ 'animate-spin': isPowerStriking }" />
+          <span class="text-[11px] sm:text-xs font-mono tracking-wider font-extrabold uppercase">
+            {{ isPowerStriking ? 'STRIKING BOSS...' : (hasSword ? 'Plasma Power Strike (+40 $DEF)' : 'Power Strike (+20 $DEF)') }}
+          </span>
         </div>
         <span 
           class="text-[11px] sm:text-xs font-mono font-black px-2 py-0.5 rounded-md border"
@@ -752,7 +852,7 @@ const formatTokens = (val: number) => {
             ? 'text-cyan-900 bg-cyan-100 border-cyan-300' 
             : 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30'"
         >
-          2 WLD
+          {{ isPowerStriking ? 'PROCESSING' : '2 WLD' }}
         </span>
       </button>
 

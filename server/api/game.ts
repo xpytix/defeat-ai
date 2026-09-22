@@ -124,9 +124,9 @@ export default defineEventHandler(async (event) => {
         weapon = player.hasSword ? 'Plasma Blade (2x)' : 'Verified Human Strike';
       } else {
         // === POWER STRIKE (2 WLD) ===
-        damage = player.hasSword ? 2 : 1;
+        damage = player.hasSword ? 4 : 2;
         tokensEarned = player.hasSword ? 40 : 20;
-        weapon = player.hasSword ? 'Plasma Power Strike (2x)' : 'Power Strike (2 WLD)';
+        weapon = player.hasSword ? 'Plasma Power Strike (4x)' : 'Power Strike (2 WLD)';
       }
 
       // Deduct Boss HP globally

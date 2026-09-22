@@ -32,6 +32,8 @@ const onChainTokens = ref<number>(0);
 const unclaimedTokens = ref<number>(0);
 const userTokens = ref<number>(0); // In-game unclaimed rewards
 const isFetchingBalance = ref<boolean>(false);
+const isPowerStriking = ref<boolean>(false);
+const recentStrikes = ref<any[]>([]);
 
 // Armory & Weapon Inventory
 const hasSword = ref(false); // Quantum Plasma Blade: 2x daily strike damage (-2 HP) & 2x tokens (+40 $DEF)
@@ -90,6 +92,7 @@ const fetchRaidState = async () => {
       currentHp.value = res.raid.currentHp;
       totalStrikes.value = res.raid.totalStrikes || 0;
       uniqueHumans.value = Object.keys(res.raid.contributors || {}).length;
+      recentStrikes.value = res.raid.recentStrikes || [];
     }
 
     if (res && res.player) {
@@ -354,6 +357,9 @@ const handleHit = async (type: 'free' | 'power') => {
           maxHp.value = res.raid.maxHp;
           currentBossLevel.value = res.raid.currentLevel;
           bossName.value = res.raid.bossName;
+          totalStrikes.value = res.raid.totalStrikes || 0;
+          uniqueHumans.value = Object.keys(res.raid.contributors || {}).length;
+          recentStrikes.value = res.raid.recentStrikes || [];
         }
 
         if (typeof window !== 'undefined') {
@@ -385,8 +391,11 @@ const handleHit = async (type: 'free' | 'power') => {
     }
   } else {
     // Power Strike (2 WLD)
+    let paymentPayload: any = null;
     if (MiniKit.isInstalled()) {
       try {
+        isPowerStriking.value = true;
+        showToast('⚡ Opening World App Payment (2 WLD)...');
         const payRes = await MiniKit.commandsAsync.pay({
           reference: `power-strike-${Date.now()}`,
           to: TREASURY_WALLET,
@@ -394,31 +403,50 @@ const handleHit = async (type: 'free' | 'power') => {
             symbol: Tokens.WLD,
             token_amount: tokenToDecimals(2, Tokens.WLD).toString()
           }],
-          description: 'Defeat AI: Power Strike (-1 HP)'
+          description: 'Defeat AI: Power Strike (-2 HP)'
         });
 
-        if (payRes.finalPayload.status !== 'success') {
-          showToast('Payment cancelled');
+        isPowerStriking.value = false;
+
+        const payload = payRes?.finalPayload;
+        const isSuccess = payload && (
+          payload.status === 'success' ||
+          payload.transaction_status === 'submitted' ||
+          Boolean((payload as any).transaction_id)
+        );
+
+        if (!isSuccess) {
+          const errMsg = payload?.error_code || 'Payment cancelled';
+          showToast(`Payment cancelled: ${errMsg}`);
           return;
         }
+        paymentPayload = payload;
       } catch (err: any) {
-        showToast(`Payment error: ${err.message}`);
+        isPowerStriking.value = false;
+        showToast(`Payment error: ${err.message || 'Unknown'}`);
         return;
       }
     } else {
-      showToast('Open inside World App to execute Power Strike with WLD');
-      showWorldAppModal.value = true;
-      return;
+      if (process.env.NODE_ENV === 'production') {
+        showToast('Open inside World App to execute Power Strike with WLD');
+        showWorldAppModal.value = true;
+        return;
+      } else {
+        paymentPayload = { status: 'success', transaction_id: 'dev_tx_power' };
+        showToast('⚠️ DEV MODE: Mock Power Strike executed.');
+      }
     }
 
     // Call server for power strike
     try {
+      showToast('⚡ Strike landing on boss...');
       const res: any = await $fetch('/api/game', {
         method: 'POST',
         body: {
           action: 'strike',
           type: 'power',
           playerId: playerId.value,
+          paymentPayload,
           hasSword: hasSword.value,
           hasBow: hasBow.value
         }
@@ -432,13 +460,29 @@ const handleHit = async (type: 'free' | 'power') => {
         if (res.raid) {
           currentHp.value = res.raid.currentHp;
           maxHp.value = res.raid.maxHp;
+          currentBossLevel.value = res.raid.currentLevel;
+          bossName.value = res.raid.bossName;
+          totalStrikes.value = res.raid.totalStrikes || 0;
+          uniqueHumans.value = Object.keys(res.raid.contributors || {}).length;
+          recentStrikes.value = res.raid.recentStrikes || [];
         }
-        const dmg = hasSword.value ? 2 : 1;
-        const tokens = hasSword.value ? 40 : 20;
+
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('defeat_ai_user_tokens', userTokens.value.toString());
+        }
+
+        const dmg = res.damage || (hasSword.value ? 4 : 2);
+        const tokens = res.tokensEarned || (hasSword.value ? 40 : 20);
         bossViewRef.value?.playAttackAnimation('power', dmg, tokens);
+
+        if (res.bossDefeated) {
+          showToast('🎉 Boss annihilated! Sector advanced!');
+        } else {
+          showToast(`⚡ Power Strike confirmed! -${dmg} HP (+${tokens} $DEF)`);
+        }
       }
     } catch (err: any) {
-      showToast('Error processing power strike');
+      showToast('Error recording power strike on server');
     }
   }
 };
@@ -457,7 +501,14 @@ const handleBuyItem = async (item: 'sword' | 'bow') => {
         description: item === 'sword' ? 'Armory: Quantum Plasma Blade (2x)' : 'Armory: Tachyon Chrono-Bow (-50% Cooldown)'
       });
 
-      if (payRes.finalPayload.status !== 'success') {
+      const payload = payRes?.finalPayload;
+      const isSuccess = payload && (
+        payload.status === 'success' ||
+        payload.transaction_status === 'submitted' ||
+        Boolean((payload as any).transaction_id)
+      );
+
+      if (!isSuccess) {
         showToast('Payment cancelled');
         return;
       }
@@ -579,6 +630,9 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
         :is-white-theme="isWhiteTheme"
         :total-strikes="totalStrikes"
         :unique-humans="uniqueHumans"
+        :recent-strikes="recentStrikes"
+        :is-power-striking="isPowerStriking"
+        :is-verifying="isVerifying"
         @hit="handleHit"
         @open-shop="isShopOpen = true"
       />
