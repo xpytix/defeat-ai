@@ -659,9 +659,7 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
     <!-- Cyber Armory & Treasury Modal -->
     <ShopModal 
       :is-open="isShopOpen"
-      :user-tokens="userTokens"
       :on-chain-tokens="onChainTokens"
-      :unclaimed-tokens="unclaimedTokens"
       :wallet-address="walletAddress"
       :is-fetching-balance="isFetchingBalance"
       :has-sword="hasSword"
@@ -669,9 +667,7 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
       :is-white-theme="isWhiteTheme"
       @close="isShopOpen = false"
       @buy-item="handleBuyItem"
-      @claim="handleClaimTokens"
       @connect-wallet="handleConnectWallet"
-      @set-wallet-address="handleSetWalletAddress"
       @refresh-balance="fetchOnChainBalance"
     />
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import { 
   X, 
   Check, 
@@ -9,15 +9,13 @@ import {
   ArrowUpRight, 
   Wallet, 
   RefreshCw, 
-  Edit3, 
   Link as LinkIcon 
 } from 'lucide-vue-next';
 
 const props = defineProps<{
   isOpen: boolean;
-  userTokens: number;             // Unclaimed in-game rewards
+  userTokens?: number;
   onChainTokens?: number;         // Live balance on World Chain
-  unclaimedTokens?: number;       // Alias for unclaimed rewards
   walletAddress?: string;         // Connected World Chain wallet
   playerAddress?: string;         // Fallback alias
   isFetchingBalance?: boolean;    // Loading indicator
@@ -29,66 +27,15 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'buyItem', item: 'sword' | 'bow'): void;
-  (e: 'claim', data: { amount: number; address: string }): void;
   (e: 'connectWallet'): void;
-  (e: 'setWalletAddress', address: string): void;
   (e: 'refreshBalance', address?: string): void;
 }>();
 
 const isProcessing = ref<string | null>(null);
-const showClaimInput = ref(false);
-const showAddressEdit = ref(false);
-const claimAddressInput = ref('');
-const customAddressInput = ref('');
 
 const activeWallet = computed(() => {
   return props.walletAddress || props.playerAddress || '';
 });
-
-const effectiveUnclaimed = computed(() => {
-  return props.unclaimedTokens !== undefined ? props.unclaimedTokens : props.userTokens;
-});
-
-// Watch open state to pre-fill inputs
-watch(() => props.isOpen, (open) => {
-  if (open) {
-    if (activeWallet.value) {
-      claimAddressInput.value = activeWallet.value;
-      customAddressInput.value = activeWallet.value;
-    }
-  }
-});
-
-const handleStartClaim = () => {
-  if (activeWallet.value) {
-    claimAddressInput.value = activeWallet.value;
-  }
-  showClaimInput.value = !showClaimInput.value;
-};
-
-const handleConfirmClaim = () => {
-  const targetAddress = claimAddressInput.value.trim() || activeWallet.value;
-  if (!targetAddress || !targetAddress.startsWith('0x') || targetAddress.length !== 42) {
-    alert('Please enter a valid World Chain wallet address (0x...)');
-    return;
-  }
-  if (effectiveUnclaimed.value < 20) {
-    alert('Minimum claim is 20 $DEF tokens.');
-    return;
-  }
-  emit('claim', { amount: effectiveUnclaimed.value, address: targetAddress });
-  showClaimInput.value = false;
-};
-
-const handleSaveCustomAddress = () => {
-  const target = customAddressInput.value.trim();
-  if (!target || !target.startsWith('0x') || target.length !== 42) {
-    alert('Invalid World Chain address. Must start with 0x and be 42 characters.');
-    return;
-  }
-  emit('setWalletAddress', target);
-  showAddressEdit.value = false;
-};
 
 const handlePurchase = (item: 'sword' | 'bow') => {
   if (item === 'sword' && props.hasSword) return;
@@ -186,14 +133,6 @@ const formatFullNumber = (val?: number) => {
                 No wallet connected
               </span>
 
-              <button 
-                v-if="activeWallet"
-                @click="showAddressEdit = !showAddressEdit"
-                class="opacity-60 hover:opacity-100 p-0.5 transition-opacity"
-                title="Edit / Change Wallet Address"
-              >
-                <Edit3 class="w-3 h-3 text-zinc-400" />
-              </button>
             </div>
 
             <!-- Connect / Refresh Buttons -->
@@ -216,29 +155,6 @@ const formatFullNumber = (val?: number) => {
                 title="Refresh on-chain balance"
               >
                 <RefreshCw class="w-3 h-3" :class="{ 'animate-spin': isFetchingBalance }" />
-              </button>
-            </div>
-          </div>
-
-          <!-- Edit Wallet Input Drawer -->
-          <div v-if="showAddressEdit || (!activeWallet && showClaimInput)" class="p-2.5 rounded-xl border flex flex-col gap-2"
-            :class="isWhiteTheme ? 'bg-white border-black/10' : 'bg-black/80 border-white/10'">
-            <div class="flex items-center justify-between text-[10px] font-mono opacity-70">
-              <span>Enter World Chain Address:</span>
-              <button @click="showAddressEdit = false" class="hover:underline">Cancel</button>
-            </div>
-            <div class="flex items-center gap-2">
-              <input 
-                v-model="customAddressInput" 
-                placeholder="0x... World Chain Address" 
-                class="flex-1 bg-transparent border rounded-lg px-2.5 py-1 text-xs font-mono outline-none focus:border-amber-500"
-                :class="isWhiteTheme ? 'border-black/20 text-black' : 'border-white/20 text-white'"
-              />
-              <button 
-                @click="handleSaveCustomAddress"
-                class="px-3 py-1 bg-amber-500 text-black font-bold rounded-lg text-xs font-mono active:scale-95"
-              >
-                Save
               </button>
             </div>
           </div>
@@ -293,63 +209,6 @@ const formatFullNumber = (val?: number) => {
           <!-- Exact token count subtitle if > 100k -->
           <div v-if="onChainTokens && onChainTokens > 10000" class="text-[10px] font-mono opacity-50 px-1">
             Exact: {{ formatFullNumber(onChainTokens) }} $DEF
-          </div>
-        </div>
-
-        <!-- 2. UNCLAIMED RAID BOUNTY & WITHDRAWAL SECTION -->
-        <div 
-          class="px-4 py-3 border-b flex flex-col gap-2"
-          :class="isWhiteTheme ? 'bg-zinc-100/50' : 'bg-zinc-900/30'"
-        >
-          <div class="flex items-center justify-between gap-2">
-            <div>
-              <div class="text-[10px] font-mono uppercase tracking-widest text-zinc-400 font-bold">
-                Unclaimed Raid Bounty
-              </div>
-              <div class="flex items-baseline gap-1 text-sm font-mono font-black text-emerald-400">
-                <span>+{{ effectiveUnclaimed }} $DEF</span>
-                <span class="text-[10px] font-normal text-zinc-400">ready to claim</span>
-              </div>
-            </div>
-
-            <!-- Claim to Wallet Button -->
-            <button 
-              @click="handleStartClaim"
-              :disabled="effectiveUnclaimed < 20"
-              class="px-3.5 py-1.5 rounded-lg border font-mono font-black text-xs flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
-              :class="isWhiteTheme 
-                ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-500 shadow-sm' 
-                : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.15)]'"
-            >
-              <Wallet class="w-3.5 h-3.5" />
-              <span>Claim Bounty</span>
-            </button>
-          </div>
-
-          <!-- Inline Claim Address Input Form -->
-          <div v-if="showClaimInput" class="p-3 rounded-xl border flex flex-col gap-2 mt-1"
-            :class="isWhiteTheme ? 'bg-white border-black/10' : 'bg-black/70 border-emerald-500/30'">
-            <div class="flex items-center justify-between text-[10px] font-mono">
-              <span class="opacity-70">Transfer To World Chain Address:</span>
-              <span class="font-bold text-emerald-400">{{ effectiveUnclaimed }} $DEF</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <input 
-                v-model="claimAddressInput" 
-                placeholder="0x... your wallet address" 
-                class="flex-1 bg-transparent border rounded-lg px-2.5 py-1.5 text-xs font-mono outline-none focus:border-emerald-500"
-                :class="isWhiteTheme ? 'border-black/20 text-black' : 'border-white/20 text-white'"
-              />
-              <button 
-                @click="handleConfirmClaim"
-                class="px-3.5 py-1.5 bg-emerald-500 text-black font-black rounded-lg text-xs font-mono active:scale-95 transition-all shadow-sm"
-              >
-                Send
-              </button>
-            </div>
-            <div class="text-[9px] font-mono opacity-50">
-              Transfers tokens from Defeat AI Distributor (0x91E0...17E5) to your wallet.
-            </div>
           </div>
         </div>
 
