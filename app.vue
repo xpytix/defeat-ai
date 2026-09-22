@@ -445,9 +445,8 @@ const handleHit = async (type: 'free' | 'power') => {
         const tokens = hasSword.value ? 40 : 20;
         bossViewRef.value?.playAttackAnimation('free', dmg, tokens);
 
-        if (res.onChainPayout?.success) {
-          showToast(`🎉 Sent ${tokens} $DEF on-chain! Tx: ${res.onChainPayout.txHash.slice(0, 8)}...`);
-          fetchOnChainBalance(walletAddress.value);
+        if (res.voucher && isInsideWorldApp.value) {
+          executeOnChainClaim(res.voucher);
         } else if (res.bossDefeated) {
           showToast('🎉 Boss annihilated! Sector advanced!');
         } else {
@@ -551,9 +550,8 @@ const handleHit = async (type: 'free' | 'power') => {
         const tokens = res.tokensEarned || (hasSword.value ? 40 : 20);
         bossViewRef.value?.playAttackAnimation('power', dmg, tokens);
 
-        if (res.onChainPayout?.success) {
-          showToast(`⚡ Power Strike confirmed! +${tokens} $DEF sent on-chain! Tx: ${res.onChainPayout.txHash.slice(0, 8)}...`);
-          fetchOnChainBalance(walletAddress.value);
+        if (res.voucher && isInsideWorldApp.value) {
+          executeOnChainClaim(res.voucher);
         } else if (res.bossDefeated) {
           showToast('🎉 Boss annihilated! Sector advanced!');
         } else {
@@ -628,9 +626,69 @@ const handleBuyItem = async (item: 'sword' | 'bow') => {
   }).catch(() => {});
 };
 
+const executeOnChainClaim = async (voucher: any) => {
+  if (!voucher) return;
+
+  if (!isInsideWorldApp.value || !MiniKit.isInstalled()) {
+    showToast(`Open inside World App to claim +${voucher.tokenAmount} $DEF on-chain`);
+    return;
+  }
+
+  try {
+    showToast(`🪙 Confirm claim of +${voucher.tokenAmount} $DEF in World App...`);
+
+    const txPayload = {
+      transaction: [
+        {
+          address: DISTRIBUTOR_CONTRACT,
+          abi: [
+            {
+              inputs: [
+                { internalType: 'address', name: 'recipient', type: 'address' },
+                { internalType: 'uint256', name: 'amount', type: 'uint256' },
+                { internalType: 'uint256', name: 'nonce', type: 'uint256' },
+                { internalType: 'uint256', name: 'expiry', type: 'uint256' },
+                { internalType: 'bytes', name: 'signature', type: 'bytes' }
+              ],
+              name: 'claim',
+              outputs: [],
+              stateMutability: 'nonpayable',
+              type: 'function'
+            }
+          ],
+          functionName: 'claim',
+          args: [
+            voucher.recipient,
+            voucher.amount,
+            voucher.nonce.toString(),
+            voucher.expiry.toString(),
+            voucher.signature
+          ]
+        }
+      ]
+    };
+
+    const res = await MiniKit.commandsAsync.sendTransaction(txPayload as any);
+    const payload = res?.finalPayload;
+
+    if (payload && (payload.status === 'success' || (payload as any).transaction_id)) {
+      showToast(`🎉 Claim confirmed on-chain! +${voucher.tokenAmount} $DEF in your wallet!`);
+      await fetchOnChainBalance(voucher.recipient);
+    } else {
+      const err = payload?.error_code || 'Cancelled';
+      if (err !== 'user_rejected') {
+        showToast(`On-chain claim: ${err}`);
+      }
+    }
+  } catch (err: any) {
+    console.warn('[OnChain Claim Error]:', err);
+    showToast(`Claim failed: ${err.message || 'Unknown'}`);
+  }
+};
+
 const handleClaimTokens = async (claimData: { amount: number; address: string }) => {
   try {
-    showToast('⏳ Processing $DEF withdrawal...');
+    showToast('⏳ Generating $DEF on-chain claim voucher...');
     const res: any = await $fetch('/api/game', {
       method: 'POST',
       body: {
@@ -641,13 +699,11 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
       }
     });
 
-    if (res && res.success) {
+    if (res && res.success && res.voucher) {
       userTokens.value = res.remainingTokens;
       unclaimedTokens.value = res.remainingTokens;
       setPersisted('defeat_ai_user_tokens', userTokens.value.toString());
-      showToast(res.message || `🎉 Successfully claimed ${claimData.amount} $DEF!`);
-      // Immediately refresh on-chain balance to reflect transfer
-      await fetchOnChainBalance(claimData.address);
+      await executeOnChainClaim(res.voucher);
     }
   } catch (err: any) {
     const errData = err.data || {};

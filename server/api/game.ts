@@ -10,7 +10,7 @@ import {
   BOSS_METADATA 
 } from '../utils/db';
 import { verifyWorldIdStrikeProof, type WorldIdProofPayload } from '../utils/worldId';
-import { distributeDefRewardOnChain } from '../utils/distributor';
+import { distributeDefRewardOnChain, generateClaimVoucher } from '../utils/distributor';
 
 export default defineEventHandler(async (event) => {
   const method = event.node.req.method;
@@ -236,11 +236,16 @@ export default defineEventHandler(async (event) => {
       player.totalDamageDealt += damage;
       player.totalStrikes += 1;
 
-      // Attempt immediate on-chain $DEF transfer to player's wallet
+      // Generate EIP-712 claim voucher (Variant B - Free gas via World App Paymaster)
+      let voucher: any = null;
       let onChainPayout: any = null;
       const targetAddress = walletAddress || player.address || (playerId.startsWith('0x') ? playerId : undefined);
       if (targetAddress && targetAddress.startsWith('0x') && targetAddress.length === 42) {
-        onChainPayout = await distributeDefRewardOnChain(targetAddress, tokensEarned);
+        (player as any).claimNonce = ((player as any).claimNonce || 0) + 1;
+        const vResult = await generateClaimVoucher(targetAddress, tokensEarned, (player as any).claimNonce);
+        if (vResult.success) {
+          voucher = vResult.voucher;
+        }
       }
 
       // Persist global raid state and player profile
@@ -256,6 +261,7 @@ export default defineEventHandler(async (event) => {
         bossDefeated,
         nullifierHash: verifiedNullifierHash,
         nextFreeHitTime: type === 'free' ? now + cooldownMs : undefined,
+        voucher,
         onChainPayout,
         raid,
         player
@@ -290,14 +296,14 @@ export default defineEventHandler(async (event) => {
         };
       }
 
-      // Execute real on-chain ERC-20 transfer from DefeatAiDistributor
-      const onChainPayout = await distributeDefRewardOnChain(recipientAddress, claimAmount);
-      if (!onChainPayout.success) {
+      // Generate EIP-712 claim voucher for player to claim via World App (Variant B)
+      (player as any).claimNonce = ((player as any).claimNonce || 0) + 1;
+      const vResult = await generateClaimVoucher(recipientAddress, claimAmount, (player as any).claimNonce);
+      if (!vResult.success || !vResult.voucher) {
         setResponseStatus(event, 500);
         return {
           success: false,
-          error: `On-chain transfer failed: ${onChainPayout.error}`,
-          details: onChainPayout.details
+          error: `Failed to generate claim voucher: ${vResult.error}`
         };
       }
 
@@ -308,14 +314,13 @@ export default defineEventHandler(async (event) => {
 
       return {
         success: true,
+        voucher: vResult.voucher,
         claimedAmount: claimAmount,
         remainingTokens: player.tokens,
         totalClaimed: (player as any).claimedTokens,
         recipientAddress,
-        txHash: onChainPayout.txHash,
-        worldscanUrl: onChainPayout.worldscanUrl,
         player,
-        message: `🎉 Transferred ${claimAmount} $DEF on-chain to ${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}!`
+        message: `🎉 Generated on-chain claim voucher for ${claimAmount} $DEF!`
       };
     }
 
