@@ -21,6 +21,7 @@ export default defineEventHandler(async (event) => {
   if (method === 'GET') {
     const query = getQuery(event);
     const playerId = (query.playerId as string | undefined) || 'anon-player';
+    const walletAddress = (query.walletAddress as string | undefined) || undefined;
     const nullifierHash = query.nullifierHash as string | undefined;
     const isView = query.isView === '1' || query.isView === 'true';
 
@@ -32,7 +33,7 @@ export default defineEventHandler(async (event) => {
       await saveRaidState(raid);
     }
 
-    const player = await getPlayerProfile(playerId, nullifierHash);
+    const player = await getPlayerProfile(playerId, nullifierHash, walletAddress);
     if (raid.cooldownResetAt && player.lastFreeHitTime && player.lastFreeHitTime < raid.cooldownResetAt) {
       player.lastFreeHitTime = 0;
       await savePlayerProfile(player);
@@ -74,7 +75,7 @@ export default defineEventHandler(async (event) => {
     } = body || {};
 
     const raid = await getRaidState();
-    let player = await getPlayerProfile(playerId, nullifierHash);
+    let player = await getPlayerProfile(playerId, nullifierHash, walletAddress);
 
     if (nullifierHash && !player.nullifierHash) player.nullifierHash = nullifierHash;
     if (walletAddress && typeof walletAddress === 'string' && walletAddress.startsWith('0x')) {
@@ -82,6 +83,9 @@ export default defineEventHandler(async (event) => {
     }
 
     const targetAddress = walletAddress || (paymentPayload && paymentPayload.from) || player.address || (playerId.startsWith('0x') ? playerId : undefined);
+    if (targetAddress && !player.address) {
+      player.address = targetAddress;
+    }
 
     if (action === 'buy_item') {
       const { item } = body || {};

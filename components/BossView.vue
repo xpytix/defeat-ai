@@ -536,29 +536,6 @@ const formatTokens = (val: number) => {
           </div>
         </div>
       </div>
-
-      <!-- ACTIVE GEAR BADGES (If player owns Sword or Bow) -->
-      <div v-if="hasSword || hasBow" class="flex items-center justify-center gap-2 pt-1 pb-0.5 select-none">
-        <div 
-          v-if="hasSword" 
-          @click="emit('openShop')"
-          class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-sm"
-          :class="isWhiteTheme ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40 shadow-emerald-500/20'"
-        >
-          <Swords class="w-3 h-3 text-emerald-400" />
-          <span>PLASMA BLADE EQUIPPED (2X DMG & DEF)</span>
-        </div>
-        <div 
-          v-if="hasBow" 
-          @click="emit('openShop')"
-          class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-sm"
-          :class="isWhiteTheme ? 'bg-violet-50 text-violet-800 border-violet-300' : 'bg-violet-500/15 text-violet-400 border-violet-500/40 shadow-violet-500/20'"
-        >
-          <Zap class="w-3 h-3 text-violet-400" />
-          <span>CHRONO-BOW (-50% COOLDOWN)</span>
-        </div>
-      </div>
-
     </div>
 
     <!-- 3D CENTERPIECE ARENA: FLUID RESPONSIVE (SCALES FREELY ON IPHONE MINI TO 17 PRO MAX & TABLETS) -->

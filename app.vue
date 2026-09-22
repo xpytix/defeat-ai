@@ -132,12 +132,17 @@ const isWhiteTheme = computed(() => [3, 5, 8].includes(currentBossLevel.value));
 const fetchRaidState = async (isView = false) => {
   try {
     isSyncing.value = true;
+    const queryParams: any = {
+      playerId: walletAddress.value || playerId.value,
+      nullifierHash: verifiedNullifier.value || undefined,
+      isView: isView ? '1' : undefined
+    };
+    if (walletAddress.value) {
+      queryParams.walletAddress = walletAddress.value;
+    }
+
     const res: any = await $fetch('/api/game', {
-      params: { 
-        playerId: playerId.value,
-        nullifierHash: verifiedNullifier.value || undefined,
-        isView: isView ? '1' : undefined
-      }
+      params: queryParams
     });
 
     if (res && res.success && res.raid) {
@@ -159,8 +164,31 @@ const fetchRaidState = async (isView = false) => {
     if (res && res.player) {
       userTokens.value = res.player.tokens;
       unclaimedTokens.value = res.player.tokens;
-      hasSword.value = res.player.hasSword;
-      hasBow.value = res.player.hasBow;
+
+      // Smart weapon status update:
+      // If server confirms weapon ownership, enable and persist immediately.
+      // If server returns false, ONLY overwrite if the profile belongs to the verified connected wallet address.
+      if (res.player.hasSword) {
+        hasSword.value = true;
+        setPersisted('defeat_ai_has_sword', 'true');
+      } else if (walletAddress.value && (
+        (res.player.address && res.player.address.toLowerCase() === walletAddress.value.toLowerCase()) ||
+        (res.player.id && res.player.id.toLowerCase() === walletAddress.value.toLowerCase())
+      )) {
+        hasSword.value = false;
+        setPersisted('defeat_ai_has_sword', 'false');
+      }
+
+      if (res.player.hasBow) {
+        hasBow.value = true;
+        setPersisted('defeat_ai_has_bow', 'true');
+      } else if (walletAddress.value && (
+        (res.player.address && res.player.address.toLowerCase() === walletAddress.value.toLowerCase()) ||
+        (res.player.id && res.player.id.toLowerCase() === walletAddress.value.toLowerCase())
+      )) {
+        hasBow.value = false;
+        setPersisted('defeat_ai_has_bow', 'false');
+      }
 
       if (res.player.nullifierHash && !verifiedNullifier.value) {
         verifiedNullifier.value = res.player.nullifierHash;
@@ -244,8 +272,8 @@ const handleConnectWallet = async () => {
   }
 };
 
-// Set / change wallet address
-const handleSetWalletAddress = (addr: string) => {
+// Set / change wallet address & immediately verify inventory & raid state
+const handleSetWalletAddress = async (addr: string) => {
   if (!addr || !addr.startsWith('0x') || addr.length !== 42) return;
   walletAddress.value = addr;
   playerId.value = addr;
@@ -253,6 +281,7 @@ const handleSetWalletAddress = (addr: string) => {
   setPersisted('defeat_ai_wallet_address', addr);
   setPersisted('defeat_ai_player_id', addr);
   fetchOnChainBalance(addr);
+  await fetchRaidState(false);
 };
 
 const handleDisconnectWallet = () => {
@@ -266,6 +295,19 @@ const handleDisconnectWallet = () => {
   showToast('Logged out');
 };
 
+const handleOpenShop = () => {
+  isShopOpen.value = true;
+  if (walletAddress.value) {
+    fetchOnChainBalance(walletAddress.value);
+    fetchRaidState(false);
+  }
+};
+
+const handleRefreshShop = (address?: string) => {
+  fetchOnChainBalance(address || walletAddress.value);
+  fetchRaidState(false);
+};
+
 // Load saved local state & initialize MiniKit + Global Raid Sync
 onMounted(() => {
   if (typeof window !== 'undefined') {
@@ -275,6 +317,10 @@ onMounted(() => {
       isInsideWorldApp.value = MiniKit.isInstalled();
       if (isInsideWorldApp.value && MiniKit.user?.walletAddress) {
         walletAddress.value = MiniKit.user.walletAddress;
+        playerId.value = MiniKit.user.walletAddress;
+        isAuthenticated.value = true;
+        setPersisted('defeat_ai_wallet_address', MiniKit.user.walletAddress);
+        setPersisted('defeat_ai_player_id', MiniKit.user.walletAddress);
       }
     } catch (e) {
       console.warn('[MiniKit] Installation check:', e);
@@ -284,15 +330,19 @@ onMounted(() => {
     const savedWallet = getPersisted('defeat_ai_wallet_address');
     if (savedWallet && savedWallet.startsWith('0x') && savedWallet.toLowerCase() !== TREASURY_WALLET.toLowerCase()) {
       walletAddress.value = savedWallet;
+      playerId.value = savedWallet;
       isAuthenticated.value = true;
-    } else {
+    } else if (!walletAddress.value) {
       walletAddress.value = '';
       isAuthenticated.value = false;
     }
 
     let storedId = getPersisted('defeat_ai_player_id');
-    if (!storedId || storedId.toLowerCase() === TREASURY_WALLET.toLowerCase()) {
-      storedId = walletAddress.value || ('human-' + Math.random().toString(36).substring(2, 9));
+    if (walletAddress.value) {
+      storedId = walletAddress.value;
+      setPersisted('defeat_ai_player_id', storedId);
+    } else if (!storedId || storedId.toLowerCase() === TREASURY_WALLET.toLowerCase()) {
+      storedId = 'human-' + Math.random().toString(36).substring(2, 9);
       setPersisted('defeat_ai_player_id', storedId);
     }
     playerId.value = storedId;
@@ -317,10 +367,10 @@ onMounted(() => {
     }
 
     const savedSword = getPersisted('defeat_ai_has_sword');
-    if (savedSword) hasSword.value = savedSword === 'true';
+    if (savedSword !== null) hasSword.value = savedSword === 'true';
 
     const savedBow = getPersisted('defeat_ai_has_bow');
-    if (savedBow) hasBow.value = savedBow === 'true';
+    if (savedBow !== null) hasBow.value = savedBow === 'true';
 
     // Pre-warm cached HP and strikes immediately
     const cachedHp = getPersisted('defeat_ai_cached_hp');
@@ -873,7 +923,7 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
         :is-power-striking="isPowerStriking"
         :is-verifying="isVerifying"
         @hit="handleHit"
-        @open-shop="isShopOpen = true"
+        @open-shop="handleOpenShop"
       />
       <CharactersView
         v-else-if="activeTab === 'characters'"
@@ -904,7 +954,7 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
       @buy-item="handleBuyItem"
       @connect-wallet="handleConnectWallet"
       @disconnect-wallet="handleDisconnectWallet"
-      @refresh-balance="fetchOnChainBalance"
+      @refresh-balance="handleRefreshShop"
     />
 
     <!-- Direct Reward Claim Modal (Variant B: EIP-712 On-Chain Claim) -->

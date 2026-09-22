@@ -222,62 +222,80 @@ export async function recordHumanStrike(nullifierHash: string, timestamp: number
   }
 }
 
-export async function getPlayerProfile(playerId: string, nullifierHash?: string): Promise<PlayerProfile> {
+export async function getPlayerProfile(
+  playerId: string, 
+  nullifierHash?: string, 
+  walletAddress?: string
+): Promise<PlayerProfile> {
   const store = getBlobsStore();
-  let profile: PlayerProfile | null = null;
+  
+  // Build candidate keys to find user profile across storage variants
+  const candidateKeys: string[] = [];
+  if (nullifierHash) candidateKeys.push(`human_player_${nullifierHash}`);
+  if (walletAddress && walletAddress.startsWith('0x')) {
+    candidateKeys.push(`player_${walletAddress}`);
+    candidateKeys.push(`player_${walletAddress.toLowerCase()}`);
+  }
+  if (playerId) {
+    candidateKeys.push(`player_${playerId}`);
+    if (playerId.startsWith('0x')) {
+      candidateKeys.push(`player_${playerId.toLowerCase()}`);
+    }
+  }
 
-  // 1. Try nullifierHash first
-  if (nullifierHash) {
-    const key = `human_player_${nullifierHash}`;
-    if (store) {
+  const uniqueKeys = Array.from(new Set(candidateKeys));
+  const foundProfiles: PlayerProfile[] = [];
+
+  for (const key of uniqueKeys) {
+    let p: PlayerProfile | null = memoryPlayers.get(key) || null;
+    if (!p && store) {
       try {
-        profile = await store.get(key, { type: 'json' }) as PlayerProfile | null;
+        p = await store.get(key, { type: 'json' }) as PlayerProfile | null;
+        if (p) memoryPlayers.set(key, p);
       } catch (err) {
         console.warn(`[DB] Error reading player ${key} from blobs:`, err);
       }
     }
-    if (!profile && memoryPlayers.has(key)) {
-      profile = memoryPlayers.get(key)!;
+    if (p) {
+      foundProfiles.push(p);
     }
   }
 
-  // 2. Try playerId / walletAddress
-  if (!profile && playerId) {
-    const playerKey = `player_${playerId}`;
-    if (store) {
-      try {
-        profile = await store.get(playerKey, { type: 'json' }) as PlayerProfile | null;
-      } catch (err) {
-        console.warn(`[DB] Error reading player ${playerKey} from blobs:`, err);
+  if (foundProfiles.length > 0) {
+    // Start with the first profile
+    const profile = { ...foundProfiles[0] };
+    for (const other of foundProfiles) {
+      if (other.hasSword) profile.hasSword = true;
+      if (other.hasBow) profile.hasBow = true;
+      if (other.nullifierHash && !profile.nullifierHash) profile.nullifierHash = other.nullifierHash;
+      if (other.address && !profile.address) profile.address = other.address;
+      if (typeof other.tokens === 'number' && other.tokens > profile.tokens) profile.tokens = other.tokens;
+      if (other.lastFreeHitTime && other.lastFreeHitTime > (profile.lastFreeHitTime || 0)) {
+        profile.lastFreeHitTime = other.lastFreeHitTime;
       }
     }
-    if (!profile && memoryPlayers.has(playerKey)) {
-      profile = memoryPlayers.get(playerKey)!;
-    }
-  }
 
-  // 3. If loaded, also check if alternate key has weapon upgrades and merge them
-  if (profile) {
-    if (playerId) {
-      const altKey = `player_${playerId}`;
-      const altData = memoryPlayers.get(altKey) || (store ? await store.get(altKey, { type: 'json' }).catch(() => null) as PlayerProfile | null : null);
-      if (altData) {
-        if (altData.hasSword) profile.hasSword = true;
-        if (altData.hasBow) profile.hasBow = true;
-      }
-    }
     if (nullifierHash && !profile.nullifierHash) profile.nullifierHash = nullifierHash;
-    if (playerId && playerId.startsWith('0x') && !profile.address) profile.address = playerId;
+    const effectiveAddr = walletAddress || (playerId.startsWith('0x') ? playerId : undefined);
+    if (effectiveAddr && !profile.address) profile.address = effectiveAddr;
+
+    // Synchronize profile across all candidate keys in memory
+    for (const key of uniqueKeys) {
+      memoryPlayers.set(key, profile);
+    }
     return profile;
   }
 
   // 4. Fresh player
   const isSzymon = playerId === 'human-1c4pv1w' || 
                    nullifierHash === '0x1b14cb64ea561472791c440e0fe3d9e5e534ab866e25cdb917301ec7af904085' ||
-                   (typeof playerId === 'string' && playerId.toLowerCase() === '0x7a9d7ce2a5c3dd2e8f73118e89a15a1aac3cdc71'.toLowerCase());
+                   (typeof playerId === 'string' && playerId.toLowerCase() === '0x7a9d7ce2a5c3dd2e8f73118e89a15a1aac3cdc71'.toLowerCase()) ||
+                   (typeof walletAddress === 'string' && walletAddress.toLowerCase() === '0x7a9d7ce2a5c3dd2e8f73118e89a15a1aac3cdc71'.toLowerCase());
 
+  const effectiveAddr = walletAddress || (playerId.startsWith('0x') ? playerId : undefined);
   const newPlayer: PlayerProfile = {
     id: playerId,
+    address: effectiveAddr,
     nullifierHash: nullifierHash || (isSzymon ? '0x1b14cb64ea561472791c440e0fe3d9e5e534ab866e25cdb917301ec7af904085' : undefined),
     tokens: isSzymon ? 20 : 0,
     hasSword: isSzymon, // Test weapon active for Szymon
@@ -287,9 +305,8 @@ export async function getPlayerProfile(playerId: string, nullifierHash?: string)
     totalStrikes: isSzymon ? 1 : 0
   };
 
-  memoryPlayers.set(`player_${playerId}`, newPlayer);
-  if (nullifierHash) {
-    memoryPlayers.set(`human_player_${nullifierHash}`, newPlayer);
+  for (const key of uniqueKeys) {
+    memoryPlayers.set(key, newPlayer);
   }
   return newPlayer;
 }
@@ -297,7 +314,12 @@ export async function getPlayerProfile(playerId: string, nullifierHash?: string)
 export async function savePlayerProfile(profile: PlayerProfile): Promise<void> {
   const store = getBlobsStore();
   const keys = new Set<string>();
-  if (profile.id) keys.add(`player_${profile.id}`);
+  if (profile.id) {
+    keys.add(`player_${profile.id}`);
+    if (profile.id.startsWith('0x')) {
+      keys.add(`player_${profile.id.toLowerCase()}`);
+    }
+  }
   if (profile.nullifierHash) keys.add(`human_player_${profile.nullifierHash}`);
   if (profile.address) {
     keys.add(`player_${profile.address}`);
