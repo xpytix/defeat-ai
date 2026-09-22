@@ -93,47 +93,46 @@ export async function verifyWorldIdStrikeProof(
       };
     }
 
-    console.warn('[WorldID] Cloud verify response:', verifyResult);
+    console.warn('[WorldID] Cloud v2 verify response:', verifyResult);
 
-    // If Worldcoin Developer Portal returns invalid_action (action registered under v4 RP rather than v2 table),
-    // or endpoint in transition: validate the cryptographic ZK payload structure directly
-    const isActionMismatch = (verifyResult as any).code === 'invalid_action' || (verifyResult as any).attribute === 'action';
-    const isValidNullifier = typeof nullifier_hash === 'string' && nullifier_hash.startsWith('0x') && nullifier_hash.length === 66;
-    const isValidMerkleRoot = typeof merkle_root === 'string' && merkle_root.startsWith('0x') && merkle_root.length === 66;
-    const isValidProof = typeof proof === 'string' && proof.length > 50;
+    // If v2 verify returned unconfirmed, check v4 RP endpoint where action daily-strike is registered
+    const rpId = process.env.WORLD_RP_ID || 'rp_d3afb26e14dc14f1';
+    if (!verifyResult.success && rpId) {
+      try {
+        const v4Res: any = await $fetch(`https://developer.worldcoin.org/api/v4/verify/${rpId}`, {
+          method: 'POST',
+          body: {
+            proof,
+            merkle_root,
+            nullifier_hash,
+            verification_level,
+            action,
+            signal
+          }
+        }).catch(() => null);
 
-    if (isActionMismatch && isValidNullifier && isValidMerkleRoot && isValidProof) {
-      console.info('[WorldID] Accepted verified native MiniKit ZK proof with nullifier:', nullifier_hash);
-      return {
-        valid: true,
-        nullifierHash: nullifier_hash,
-        verificationLevel: verification_level
-      };
+        if (v4Res && (v4Res.success || v4Res.status === 'success' || v4Res.verified)) {
+          return {
+            valid: true,
+            nullifierHash: nullifier_hash,
+            verificationLevel: verification_level
+          };
+        }
+      } catch (e: any) {
+        console.warn('[WorldID] v4 verify check failed:', e?.message);
+      }
     }
 
     return {
       valid: false,
-      error: 'World ID proof rejected by Worldcoin network.',
+      error: 'World ID ZK proof verification failed with Worldcoin network.',
       details: verifyResult
     };
   } catch (err: any) {
     console.error('[WorldID] Verification network error:', err);
-    // If external verify service has network connectivity issues, validate proof structure
-    const isValidNullifier = typeof nullifier_hash === 'string' && nullifier_hash.startsWith('0x') && nullifier_hash.length === 66;
-    const isValidMerkleRoot = typeof merkle_root === 'string' && merkle_root.startsWith('0x') && merkle_root.length === 66;
-    const isValidProof = typeof proof === 'string' && proof.length > 50;
-
-    if (isValidNullifier && isValidMerkleRoot && isValidProof) {
-      return {
-        valid: true,
-        nullifierHash: nullifier_hash,
-        verificationLevel: verification_level
-      };
-    }
-
     return {
       valid: false,
-      error: `World ID verification service error: ${err.message || 'unknown'}`
+      error: `World ID verification service error: ${err.message || 'Verification failed'}`
     };
   }
 }

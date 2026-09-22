@@ -7,10 +7,12 @@ import {
   getHumanLastStrike, 
   recordHumanStrike, 
   resetGlobalCooldowns,
+  markTransactionUsed,
   BOSS_METADATA 
 } from '../utils/db';
 import { verifyWorldIdStrikeProof, type WorldIdProofPayload } from '../utils/worldId';
 import { distributeDefRewardOnChain, generateClaimVoucher } from '../utils/distributor';
+import { verifyWorldAppPayment } from '../utils/payment';
 
 export default defineEventHandler(async (event) => {
   const method = event.node.req.method;
@@ -79,9 +81,48 @@ export default defineEventHandler(async (event) => {
       player.address = walletAddress;
     }
 
-    // Sync item flags if provided
-    if (typeof hasSword === 'boolean') player.hasSword = hasSword;
-    if (typeof hasBow === 'boolean') player.hasBow = hasBow;
+    const targetAddress = walletAddress || (paymentPayload && paymentPayload.from) || player.address || (playerId.startsWith('0x') ? playerId : undefined);
+
+    if (action === 'buy_item') {
+      const { item } = body || {};
+      if (item !== 'sword' && item !== 'bow') {
+        setResponseStatus(event, 400);
+        return { success: false, error: 'Invalid item. Must be sword or bow.' };
+      }
+
+      if (item === 'sword' && player.hasSword) {
+        return { success: true, player, message: 'Plasma Blade already equipped.' };
+      }
+      if (item === 'bow' && player.hasBow) {
+        return { success: true, player, message: 'Tachyon Chrono-Bow already equipped.' };
+      }
+
+      // Verify 200 WLD payment strictly
+      const paymentCheck = await verifyWorldAppPayment(paymentPayload, 200, item);
+      if (!paymentCheck.valid) {
+        setResponseStatus(event, 400);
+        return { success: false, error: paymentCheck.error || 'Payment verification failed for 200 WLD.' };
+      }
+
+      await markTransactionUsed(paymentCheck.txId!, {
+        action: 'buy_item',
+        item,
+        playerId: player.id,
+        walletAddress: targetAddress
+      });
+
+      if (item === 'sword') player.hasSword = true;
+      if (item === 'bow') player.hasBow = true;
+
+      await savePlayerProfile(player);
+
+      return {
+        success: true,
+        item,
+        player,
+        message: `🎉 Successfully equipped ${item === 'sword' ? 'Quantum Plasma Blade' : 'Tachyon Chrono-Bow'}!`
+      };
+    }
 
     if (action === 'strike') {
       const now = Date.now();
@@ -143,7 +184,23 @@ export default defineEventHandler(async (event) => {
         tokensEarned = player.hasSword ? 40 : 20;
         weapon = player.hasSword ? 'Plasma Blade (2x)' : 'Verified Human Strike';
       } else {
-        // === POWER STRIKE (2 WLD) ===
+        // === POWER STRIKE (2 WLD) - STRICT VERIFICATION & REPLAY PROTECTION ===
+        const paymentCheck = await verifyWorldAppPayment(paymentPayload, 2, 'power_strike');
+        if (!paymentCheck.valid) {
+          setResponseStatus(event, 400);
+          return {
+            success: false,
+            error: paymentCheck.error || 'Payment verification failed for 2 WLD Power Strike.'
+          };
+        }
+
+        // Mark transaction as redeemed immediately (Replay Attack Protection)
+        await markTransactionUsed(paymentCheck.txId!, {
+          action: 'power_strike',
+          playerId: player.id,
+          walletAddress: targetAddress
+        });
+
         damage = player.hasSword ? 4 : 2;
         tokensEarned = player.hasSword ? 40 : 20;
         weapon = player.hasSword ? 'Plasma Power Strike (4x)' : 'Power Strike (2 WLD)';
@@ -221,7 +278,6 @@ export default defineEventHandler(async (event) => {
       // Target recipient wallet address
       let voucher: any = null;
       let onChainPayout: any = null;
-      const targetAddress = walletAddress || (paymentPayload && paymentPayload.from) || player.address || (playerId.startsWith('0x') ? playerId : undefined);
       
       if (targetAddress && targetAddress.startsWith('0x') && targetAddress.length === 42) {
         player.address = targetAddress;

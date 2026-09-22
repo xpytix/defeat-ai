@@ -300,3 +300,37 @@ export async function savePlayerProfile(profile: PlayerProfile): Promise<void> {
     }
   }
 }
+
+// Payment Replay Protection
+const memoryUsedTransactions = new Set<string>();
+
+export async function isTransactionUsed(txId: string): Promise<boolean> {
+  if (!txId) return true;
+  if (memoryUsedTransactions.has(txId)) return true;
+  const store = getBlobsStore();
+  if (store) {
+    try {
+      const data = await store.get(`used_tx_${txId}`);
+      if (data) {
+        memoryUsedTransactions.add(txId);
+        return true;
+      }
+    } catch (e) {
+      console.warn('[DB] Error checking used tx:', e);
+    }
+  }
+  return false;
+}
+
+export async function markTransactionUsed(txId: string, details: Record<string, any>): Promise<void> {
+  if (!txId) return;
+  memoryUsedTransactions.add(txId);
+  const store = getBlobsStore();
+  if (store) {
+    try {
+      await store.setJSON(`used_tx_${txId}`, { ...details, timestamp: Date.now() });
+    } catch (e) {
+      console.error('[DB] Failed to record used tx in blobs:', e);
+    }
+  }
+}

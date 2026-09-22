@@ -649,6 +649,29 @@ const handleBuyItem = async (item: 'sword' | 'bow') => {
         showToast('Payment cancelled');
         return;
       }
+
+      showToast('⏳ Verifying 200 WLD purchase on server...');
+      let buyRes: any = null;
+      try {
+        buyRes = await $fetch('/api/game', {
+          method: 'POST',
+          body: {
+            action: 'buy_item',
+            item,
+            playerId: playerId.value,
+            walletAddress: walletAddress.value,
+            paymentPayload: payload
+          }
+        });
+      } catch (apiErr: any) {
+        showToast(`Equip verification failed: ${apiErr?.data?.error || apiErr.message}`);
+        return;
+      }
+
+      if (!buyRes || !buyRes.success) {
+        showToast(`Equip failed: ${buyRes?.error || 'Verification error'}`);
+        return;
+      }
     } catch (err: any) {
       showToast(`Payment failed: ${err.message}`);
       return;
@@ -673,17 +696,6 @@ const handleBuyItem = async (item: 'sword' | 'bow') => {
 
   setPersisted('defeat_ai_has_sword', hasSword.value.toString());
   setPersisted('defeat_ai_has_bow', hasBow.value.toString());
-
-  // Sync with Netlify Blobs
-  $fetch('/api/game', {
-    method: 'POST',
-    body: {
-      action: 'sync',
-      playerId: playerId.value,
-      hasSword: hasSword.value,
-      hasBow: hasBow.value
-    }
-  }).catch(() => {});
 };
 
 const executeOnChainClaim = async (voucher: any) => {
