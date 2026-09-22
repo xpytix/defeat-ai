@@ -407,6 +407,7 @@ const handleHit = async (type: 'free' | 'power') => {
           action: 'strike',
           type: 'free',
           playerId: playerId.value,
+          walletAddress: walletAddress.value,
           proofPayload,
           hasSword: hasSword.value,
           hasBow: hasBow.value
@@ -444,7 +445,10 @@ const handleHit = async (type: 'free' | 'power') => {
         const tokens = hasSword.value ? 40 : 20;
         bossViewRef.value?.playAttackAnimation('free', dmg, tokens);
 
-        if (res.bossDefeated) {
+        if (res.onChainPayout?.success) {
+          showToast(`🎉 Sent ${tokens} $DEF on-chain! Tx: ${res.onChainPayout.txHash.slice(0, 8)}...`);
+          fetchOnChainBalance(walletAddress.value);
+        } else if (res.bossDefeated) {
           showToast('🎉 Boss annihilated! Sector advanced!');
         } else {
           showToast(`💥 Strike confirmed! -${dmg} HP (+${tokens} $DEF)`);
@@ -519,6 +523,7 @@ const handleHit = async (type: 'free' | 'power') => {
           action: 'strike',
           type: 'power',
           playerId: playerId.value,
+          walletAddress: walletAddress.value,
           paymentPayload,
           hasSword: hasSword.value,
           hasBow: hasBow.value
@@ -546,7 +551,10 @@ const handleHit = async (type: 'free' | 'power') => {
         const tokens = res.tokensEarned || (hasSword.value ? 40 : 20);
         bossViewRef.value?.playAttackAnimation('power', dmg, tokens);
 
-        if (res.bossDefeated) {
+        if (res.onChainPayout?.success) {
+          showToast(`⚡ Power Strike confirmed! +${tokens} $DEF sent on-chain! Tx: ${res.onChainPayout.txHash.slice(0, 8)}...`);
+          fetchOnChainBalance(walletAddress.value);
+        } else if (res.bossDefeated) {
           showToast('🎉 Boss annihilated! Sector advanced!');
         } else {
           showToast(`⚡ Power Strike confirmed! -${dmg} HP (+${tokens} $DEF)`);
@@ -733,6 +741,7 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
       @buy-item="handleBuyItem"
       @connect-wallet="handleConnectWallet"
       @refresh-balance="fetchOnChainBalance"
+      @claim-tokens="handleClaimTokens"
     />
 
     <!-- World App Required Modal (When outside World App on desktop) -->

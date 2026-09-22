@@ -29,6 +29,7 @@ const emit = defineEmits<{
   (e: 'buyItem', item: 'sword' | 'bow'): void;
   (e: 'connectWallet'): void;
   (e: 'refreshBalance', address?: string): void;
+  (e: 'claimTokens', data: { amount: number; address: string }): void;
 }>();
 
 const isProcessing = ref<string | null>(null);
@@ -184,8 +185,20 @@ const formatFullNumber = (val?: number) => {
             </div>
 
             <div class="text-right shrink-0">
-              <span class="text-[10px] font-mono font-bold px-2 py-1 rounded-md border bg-amber-500/15 border-amber-500/30 text-amber-400">
-                In-Game Vault
+              <button
+                v-if="activeWallet && (userTokens || 0) >= 20"
+                @click="emit('claimTokens', { amount: userTokens || 0, address: activeWallet })"
+                class="px-2.5 py-1.5 rounded-lg bg-amber-500 text-black font-mono font-black text-[10px] tracking-wide uppercase hover:bg-amber-400 active:scale-95 transition-all shadow-md flex items-center gap-1 cursor-pointer"
+                title="Claim tokens on-chain to your World Chain wallet"
+              >
+                <span>Claim On-Chain</span>
+                <ArrowUpRight class="w-3 h-3" />
+              </button>
+              <span v-else-if="(userTokens || 0) >= 20" class="text-[10px] font-mono font-bold px-2 py-1 rounded-md border bg-amber-500/15 border-amber-500/30 text-amber-400">
+                Connect Wallet
+              </span>
+              <span v-else class="text-[10px] font-mono font-bold px-2 py-1 rounded-md border bg-zinc-800/40 border-white/10 text-zinc-400">
+                Min 20 $DEF
               </span>
             </div>
           </div>

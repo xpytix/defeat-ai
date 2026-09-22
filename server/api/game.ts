@@ -10,6 +10,7 @@ import {
   BOSS_METADATA 
 } from '../utils/db';
 import { verifyWorldIdStrikeProof, type WorldIdProofPayload } from '../utils/worldId';
+import { distributeDefRewardOnChain } from '../utils/distributor';
 
 export default defineEventHandler(async (event) => {
   const method = event.node.req.method;
@@ -68,6 +69,7 @@ export default defineEventHandler(async (event) => {
       action, 
       playerId = 'anon-player', 
       playerName, 
+      walletAddress,
       type = 'free', 
       proofPayload,
       paymentPayload,
@@ -77,6 +79,10 @@ export default defineEventHandler(async (event) => {
 
     const raid = await getRaidState();
     let player = await getPlayerProfile(playerId);
+
+    if (walletAddress && typeof walletAddress === 'string' && walletAddress.startsWith('0x')) {
+      player.address = walletAddress;
+    }
 
     // Sync item flags if provided
     if (typeof hasSword === 'boolean') player.hasSword = hasSword;
@@ -230,6 +236,13 @@ export default defineEventHandler(async (event) => {
       player.totalDamageDealt += damage;
       player.totalStrikes += 1;
 
+      // Attempt immediate on-chain $DEF transfer to player's wallet
+      let onChainPayout: any = null;
+      const targetAddress = walletAddress || player.address || (playerId.startsWith('0x') ? playerId : undefined);
+      if (targetAddress && targetAddress.startsWith('0x') && targetAddress.length === 42) {
+        onChainPayout = await distributeDefRewardOnChain(targetAddress, tokensEarned);
+      }
+
       // Persist global raid state and player profile
       await Promise.all([
         saveRaidState(raid),
@@ -243,6 +256,7 @@ export default defineEventHandler(async (event) => {
         bossDefeated,
         nullifierHash: verifiedNullifierHash,
         nextFreeHitTime: type === 'free' ? now + cooldownMs : undefined,
+        onChainPayout,
         raid,
         player
       };
@@ -276,6 +290,17 @@ export default defineEventHandler(async (event) => {
         };
       }
 
+      // Execute real on-chain ERC-20 transfer from DefeatAiDistributor
+      const onChainPayout = await distributeDefRewardOnChain(recipientAddress, claimAmount);
+      if (!onChainPayout.success) {
+        setResponseStatus(event, 500);
+        return {
+          success: false,
+          error: `On-chain transfer failed: ${onChainPayout.error}`,
+          details: onChainPayout.details
+        };
+      }
+
       player.tokens -= claimAmount;
       (player as any).claimedTokens = ((player as any).claimedTokens || 0) + claimAmount;
       player.address = recipientAddress;
@@ -287,8 +312,10 @@ export default defineEventHandler(async (event) => {
         remainingTokens: player.tokens,
         totalClaimed: (player as any).claimedTokens,
         recipientAddress,
+        txHash: onChainPayout.txHash,
+        worldscanUrl: onChainPayout.worldscanUrl,
         player,
-        message: `🎉 Claimed ${claimAmount} $DEF to ${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}!`
+        message: `🎉 Transferred ${claimAmount} $DEF on-chain to ${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}!`
       };
     }
 
