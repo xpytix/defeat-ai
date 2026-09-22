@@ -5,6 +5,7 @@ import BossView from '~/components/BossView.vue';
 import CharactersView from '~/components/CharactersView.vue';
 import BottomNav from '~/components/BottomNav.vue';
 import ShopModal from '~/components/ShopModal.vue';
+import { Sparkles, Check, ArrowUpRight, X } from 'lucide-vue-next';
 
 // App & Treasury Configuration
 const APP_ID = 'app_00e63093c3a6d36ace61c9b587ffcdf8';
@@ -59,6 +60,13 @@ const verifiedNullifier = ref<string | null>(null);
 const isInsideWorldApp = ref(false);
 const showWorldAppModal = ref(false);
 const isVerifying = ref(false);
+
+// Direct Reward Claim Modal State (Variant B: EIP-712 Voucher Claim)
+const showRewardClaimModal = ref(false);
+const pendingVoucher = ref<any>(null);
+const isClaimingOnChain = ref(false);
+const claimStatusMessage = ref('');
+const claimStatusSuccess = ref(false);
 
 // User Token Balance ($DEF) & World Chain Wallet Connection
 const walletAddress = ref<string>('');
@@ -454,8 +462,14 @@ const handleHit = async (type: 'free' | 'power') => {
         if (res.onChainPayout?.success) {
           showToast(`🎉 On-Chain: +${tokens} $DEF sent to your wallet!`);
           if (walletAddress.value) fetchOnChainBalance(walletAddress.value);
-        } else if (res.voucher && isInsideWorldApp.value) {
-          executeOnChainClaim(res.voucher);
+        } else if (res.voucher) {
+          pendingVoucher.value = res.voucher;
+          showRewardClaimModal.value = true;
+          claimStatusMessage.value = '';
+          claimStatusSuccess.value = false;
+          if (isInsideWorldApp.value) {
+            executeOnChainClaim(res.voucher);
+          }
         } else if (res.bossDefeated) {
           showToast('🎉 Boss annihilated! Sector advanced!');
         } else {
@@ -566,8 +580,14 @@ const handleHit = async (type: 'free' | 'power') => {
         if (res.onChainPayout?.success) {
           showToast(`🎉 Power Strike! +${tokens} $DEF sent to your wallet!`);
           if (walletAddress.value) fetchOnChainBalance(walletAddress.value);
-        } else if (res.voucher && isInsideWorldApp.value) {
-          executeOnChainClaim(res.voucher);
+        } else if (res.voucher) {
+          pendingVoucher.value = res.voucher;
+          showRewardClaimModal.value = true;
+          claimStatusMessage.value = '';
+          claimStatusSuccess.value = false;
+          if (isInsideWorldApp.value) {
+            executeOnChainClaim(res.voucher);
+          }
         } else if (res.bossDefeated) {
           showToast('🎉 Boss annihilated! Sector advanced!');
         } else {
@@ -647,10 +667,14 @@ const executeOnChainClaim = async (voucher: any) => {
 
   if (!isInsideWorldApp.value || !MiniKit.isInstalled()) {
     showToast(`Open inside World App to claim +${voucher.tokenAmount} $DEF on-chain`);
+    showWorldAppModal.value = true;
     return;
   }
 
   try {
+    isClaimingOnChain.value = true;
+    claimStatusMessage.value = 'Confirm transaction in World App...';
+    claimStatusSuccess.value = false;
     showToast(`🪙 Confirm claim of +${voucher.tokenAmount} $DEF in World App...`);
 
     const txPayload = {
@@ -688,23 +712,34 @@ const executeOnChainClaim = async (voucher: any) => {
     const payload = res?.finalPayload;
 
     if (payload && (payload.status === 'success' || (payload as any).transaction_id)) {
+      claimStatusSuccess.value = true;
+      claimStatusMessage.value = `🎉 Claim confirmed on World Chain! +${voucher.tokenAmount} $DEF in your wallet!`;
       showToast(`🎉 Claim confirmed on-chain! +${voucher.tokenAmount} $DEF in your wallet!`);
       await fetchOnChainBalance(voucher.recipient);
+      setTimeout(() => {
+        showRewardClaimModal.value = false;
+      }, 3000);
     } else {
       const err = payload?.error_code || 'Cancelled';
-      if (err !== 'user_rejected') {
+      if (err === 'user_rejected') {
+        claimStatusMessage.value = 'Transaction cancelled';
+      } else {
+        claimStatusMessage.value = `On-chain claim: ${err}`;
         showToast(`On-chain claim: ${err}`);
       }
     }
   } catch (err: any) {
     console.warn('[OnChain Claim Error]:', err);
+    claimStatusMessage.value = `Claim failed: ${err.message || 'Unknown'}`;
     showToast(`Claim failed: ${err.message || 'Unknown'}`);
+  } finally {
+    isClaimingOnChain.value = false;
   }
 };
 
 const handleClaimTokens = async (claimData: { amount: number; address: string }) => {
   try {
-    showToast('⏳ Processing on-chain $DEF claim...');
+    showToast('⏳ Generating $DEF on-chain claim voucher...');
     const res: any = await $fetch('/api/game', {
       method: 'POST',
       body: {
@@ -723,6 +758,10 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
         showToast(res.message || `🎉 Successfully transferred ${claimData.amount} $DEF on-chain!`);
         await fetchOnChainBalance(claimData.address);
       } else if (res.voucher) {
+        pendingVoucher.value = res.voucher;
+        showRewardClaimModal.value = true;
+        claimStatusMessage.value = '';
+        claimStatusSuccess.value = false;
         await executeOnChainClaim(res.voucher);
       }
     }
@@ -820,6 +859,89 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
       @refresh-balance="fetchOnChainBalance"
       @claim-tokens="handleClaimTokens"
     />
+
+    <!-- Direct Reward Claim Modal (Variant B: EIP-712 On-Chain Claim) -->
+    <div 
+      v-if="showRewardClaimModal && pendingVoucher"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in select-none"
+      @click.self="showRewardClaimModal = false"
+    >
+      <div 
+        class="relative w-full max-w-sm rounded-2xl border p-5 shadow-2xl flex flex-col items-center text-center transition-colors my-auto"
+        :class="isWhiteTheme ? 'bg-white border-amber-500/40 text-zinc-950' : 'bg-zinc-950 border-amber-500/40 text-white shadow-amber-500/10'"
+      >
+        <!-- Close button -->
+        <button 
+          @click="showRewardClaimModal = false"
+          class="absolute top-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center border transition-all active:scale-90"
+          :class="isWhiteTheme ? 'bg-black/5 hover:bg-black/10 border-black/10 text-zinc-700' : 'bg-white/5 hover:bg-white/15 border-white/10 text-zinc-400 hover:text-white'"
+        >
+          <X class="w-3.5 h-3.5" />
+        </button>
+
+        <!-- Glowing Reward Icon -->
+        <div class="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mb-3 shadow-lg shadow-amber-500/20">
+          <Sparkles class="w-8 h-8 text-amber-400" />
+        </div>
+
+        <span class="text-[10px] font-mono font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border bg-amber-500/15 border-amber-500/30 text-amber-400 mb-1">
+          Raid Bounty Unlocked
+        </span>
+
+        <h3 class="text-xl font-extrabold tracking-tight mt-1">
+          Claim Your Rewards!
+        </h3>
+
+        <div 
+          class="my-3 py-2.5 px-4 rounded-xl border w-full flex items-center justify-center gap-2"
+          :class="isWhiteTheme ? 'bg-amber-50 border-amber-200' : 'bg-amber-500/10 border-amber-500/25'"
+        >
+          <span class="text-3xl font-black font-mono text-amber-400">
+            +{{ pendingVoucher.tokenAmount }}
+          </span>
+          <span class="text-sm font-bold font-mono text-amber-500">$DEF</span>
+        </div>
+
+        <p class="text-xs font-mono opacity-70 mb-3 leading-relaxed">
+          Official on-chain voucher signed. Gas sponsored by World App ($0.00 fee).
+        </p>
+
+        <!-- Status message if claiming or success -->
+        <div v-if="claimStatusMessage" class="mb-3 text-xs font-mono font-bold" :class="claimStatusSuccess ? 'text-emerald-400' : 'text-amber-400'">
+          {{ claimStatusMessage }}
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="w-full flex flex-col gap-2 mt-1">
+          <button
+            v-if="!claimStatusSuccess"
+            @click="executeOnChainClaim(pendingVoucher)"
+            :disabled="isClaimingOnChain"
+            class="w-full py-3 px-4 rounded-xl bg-amber-500 text-black font-mono font-black text-xs uppercase tracking-wider hover:bg-amber-400 active:scale-95 transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            <Sparkles class="w-4 h-4" />
+            <span>{{ isClaimingOnChain ? 'CONFIRMING IN WORLD APP...' : `RECEIVE ${pendingVoucher.tokenAmount} $DEF ON-CHAIN` }}</span>
+          </button>
+
+          <button
+            v-else
+            @click="showRewardClaimModal = false"
+            class="w-full py-3 px-4 rounded-xl bg-emerald-500 text-black font-mono font-black text-xs uppercase tracking-wider hover:bg-emerald-400 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Check class="w-4 h-4" />
+            <span>CLAIMED TO WALLET</span>
+          </button>
+
+          <button
+            v-if="!claimStatusSuccess && !isClaimingOnChain"
+            @click="showRewardClaimModal = false"
+            class="w-full py-1 text-[11px] font-mono opacity-50 hover:opacity-100 transition-opacity"
+          >
+            Claim later in Cyber Armory
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- World App Required Modal (When outside World App on desktop) -->
     <div 
