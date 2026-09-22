@@ -892,7 +892,6 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
       @connect-wallet="handleConnectWallet"
       @disconnect-wallet="handleDisconnectWallet"
       @refresh-balance="fetchOnChainBalance"
-      @claim-tokens="handleClaimTokens"
     />
 
     <!-- Direct Reward Claim Modal (Variant B: EIP-712 On-Chain Claim) -->
@@ -942,7 +941,7 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
         </p>
 
         <p class="text-[10px] font-mono text-amber-400/80 mb-3">
-          Daily limit: 500 $DEF / 24h. Remaining balance stays in Cyber Armory.
+          Instant on-chain drop delivered directly to your World App wallet.
         </p>
 
         <!-- Status message if claiming or success -->
@@ -976,7 +975,7 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
             @click="showRewardClaimModal = false"
             class="w-full py-1 text-[11px] font-mono opacity-50 hover:opacity-100 transition-opacity"
           >
-            Claim later in Cyber Armory
+            Dismiss
           </button>
         </div>
       </div>
