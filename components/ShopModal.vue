@@ -230,28 +230,35 @@ const formatFullNumber = (val?: number) => {
 
           <!-- Push Notifications Status Card -->
           <div 
-            class="p-3 rounded-xl border flex items-center justify-between gap-2 shadow-inner transition-colors"
-            :class="isWhiteTheme ? 'bg-white border-black/10' : 'bg-zinc-950/80 border-white/10'"
+            class="p-3 rounded-2xl border flex items-center justify-between gap-2.5 shadow-sm transition-all"
+            :class="isWhiteTheme 
+              ? (isNotificationsEnabled ? 'bg-cyan-50/50 border-cyan-500/30 shadow-cyan-500/5' : 'bg-black/[0.02] border-black/10') 
+              : (isNotificationsEnabled ? 'bg-cyan-950/20 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.1)]' : 'bg-zinc-950/80 border-white/10')"
           >
-            <div class="flex items-center gap-2 min-w-0">
+            <div class="flex items-center gap-2.5 min-w-0">
               <div 
-                class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border"
-                :class="isNotificationsEnabled ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400' : 'bg-zinc-800/40 border-white/10 text-zinc-500'"
+                class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all"
+                :class="isNotificationsEnabled 
+                  ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.3)]' 
+                  : 'bg-zinc-800/40 border-white/10 text-zinc-500'"
               >
-                <BellRing v-if="isNotificationsEnabled" class="w-4 h-4" />
+                <BellRing v-if="isNotificationsEnabled" class="w-4 h-4 animate-bounce" />
                 <Bell v-else class="w-4 h-4" />
               </div>
               <div class="min-w-0">
                 <div class="text-xs font-mono font-bold flex items-center gap-1.5">
-                  <span>Push Alerts</span>
+                  <span>World App Alerts</span>
                   <span 
-                    class="text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider"
-                    :class="isNotificationsEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-400'"
+                    class="text-[9px] px-1.5 py-0.2 rounded-full font-bold uppercase tracking-wider flex items-center gap-1"
+                    :class="isNotificationsEnabled 
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' 
+                      : 'bg-zinc-800 text-zinc-400 border border-white/10'"
                   >
-                    {{ isNotificationsEnabled ? 'Active' : 'Off' }}
+                    <span class="w-1.5 h-1.5 rounded-full" :class="isNotificationsEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-500'"></span>
+                    <span>{{ isNotificationsEnabled ? 'Active' : 'Off' }}</span>
                   </span>
                 </div>
-                <p class="text-[9px] font-mono text-zinc-400 truncate">
+                <p class="text-[9px] font-mono text-zinc-400 truncate mt-0.5">
                   Daily strike ready, boss 50% HP & new spawns
                 </p>
               </div>
@@ -259,75 +266,92 @@ const formatFullNumber = (val?: number) => {
 
             <button
               @click="emit('toggleNotifications')"
-              class="text-[10px] font-mono font-bold px-2.5 py-1 rounded-lg border shrink-0 transition-all active:scale-95"
+              class="text-[10px] font-mono font-black px-3 py-1.5 rounded-xl border shrink-0 transition-all active:scale-95 flex items-center gap-1 cursor-pointer"
               :class="isNotificationsEnabled 
-                ? (isWhiteTheme ? 'bg-zinc-100 border-black/10 text-zinc-700 hover:bg-zinc-200' : 'bg-white/5 border-white/15 text-zinc-300 hover:bg-white/10') 
-                : 'bg-cyan-500 text-black border-cyan-400 hover:bg-cyan-400 font-extrabold shadow-sm'"
+                ? (isWhiteTheme ? 'bg-zinc-100 border-black/15 text-zinc-800 hover:bg-zinc-200' : 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/25') 
+                : 'bg-cyan-500 text-black border-cyan-400 hover:bg-cyan-400 font-extrabold shadow-[0_0_12px_rgba(6,182,212,0.4)]'"
             >
-              {{ isNotificationsEnabled ? 'Test Alert' : 'Enable' }}
+              <span>{{ isNotificationsEnabled ? '⚡ Test Alert' : '🔔 Enable' }}</span>
             </button>
           </div>
         </div>
 
         <!-- 3. CYBER ARMORY EQUIPMENT SLOTS -->
-        <div class="p-4 space-y-3">
+        <div class="p-4 space-y-3.5">
           <div class="text-[10px] font-mono uppercase tracking-widest opacity-60 font-bold flex items-center justify-between">
-            <span>Cyber Armory Equipment</span>
+            <span>Cyber Armory Weapons</span>
             <span>Permanent Upgrade</span>
           </div>
           
           <!-- ITEM 1: QUANTUM PLASMA BLADE -->
           <div 
-            class="rounded-xl border p-3 transition-all flex items-center gap-3"
+            class="group relative rounded-2xl border p-3.5 transition-all duration-300 flex items-center gap-3.5 overflow-hidden"
             :class="hasSword 
-              ? (isWhiteTheme ? 'bg-emerald-50/60 border-emerald-500/40' : 'bg-emerald-950/15 border-emerald-500/40')
-              : (isWhiteTheme ? 'bg-white border-black/10 shadow-sm' : 'bg-zinc-900/40 border-white/10 hover:border-cyan-500/40')"
+              ? (isWhiteTheme 
+                  ? 'bg-gradient-to-r from-cyan-50/80 via-white to-emerald-50/40 border-cyan-500/40 shadow-sm' 
+                  : 'bg-gradient-to-r from-cyan-950/25 via-zinc-950 to-zinc-900 border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.15)]')
+              : (isWhiteTheme 
+                  ? 'bg-white border-black/10 hover:border-cyan-500/50 hover:shadow-md' 
+                  : 'bg-zinc-950/90 border-white/10 hover:border-cyan-500/50 hover:shadow-[0_0_20px_rgba(6,182,212,0.1)]')"
           >
-            <!-- Weapon Render -->
+            <!-- Ambient Card Backglow -->
             <div 
-              class="w-20 h-20 rounded-xl bg-black border border-white/10 overflow-hidden shrink-0 flex items-center justify-center relative p-1 shadow-inner"
+              class="absolute -top-10 -left-10 w-28 h-28 rounded-full blur-[40px] pointer-events-none transition-opacity"
+              :class="hasSword ? 'bg-cyan-500/20 opacity-100' : 'bg-cyan-500/10 opacity-50 group-hover:opacity-100'"
+            />
+
+            <!-- Weapon Render Box -->
+            <div 
+              class="w-20 h-20 sm:w-22 sm:h-22 rounded-2xl bg-black/90 border overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner p-1 group/img"
+              :class="hasSword 
+                ? 'border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.25)]' 
+                : 'border-white/15 group-hover:border-cyan-400/50'"
             >
               <img 
-                src="/items/sword.png" 
-                alt="Plasma Blade" 
-                class="w-full h-full object-contain pointer-events-none"
+                src="/items/sword.jpg" 
+                alt="Quantum Plasma Blade" 
+                class="w-full h-full object-cover rounded-xl transition-transform duration-500 group-hover/img:scale-110 pointer-events-none"
               />
+              <!-- Energy Scanline Overlay -->
+              <div class="absolute inset-0 bg-gradient-to-t from-cyan-500/20 via-transparent to-transparent pointer-events-none rounded-xl" />
             </div>
 
             <!-- Weapon Info -->
-            <div class="flex-1 min-w-0 flex flex-col justify-between h-20 py-0.5">
+            <div class="flex-1 min-w-0 flex flex-col justify-between py-0.5">
               <div>
                 <div class="flex items-center justify-between gap-1">
-                  <h3 class="font-extrabold text-xs sm:text-sm tracking-wide truncate">
-                    Plasma Blade
+                  <h3 class="font-extrabold text-xs sm:text-sm tracking-wide truncate flex items-center gap-1.5">
+                    <span :class="isWhiteTheme ? 'text-zinc-950' : 'text-white'">Plasma Blade</span>
                   </h3>
                   <span 
-                    class="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border shrink-0"
+                    class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md border shrink-0 tracking-wider shadow-sm"
                     :class="hasSword 
-                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' 
-                      : (isWhiteTheme ? 'bg-black/5 border-black/15 text-zinc-700' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400')"
+                      ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' 
+                      : (isWhiteTheme ? 'bg-cyan-100 border-cyan-300 text-cyan-950' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400')"
                   >
                     2X DMG & DEF
                   </span>
                 </div>
-                <p class="text-[10px] font-mono mt-0.5 leading-tight" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">
-                  Deals <strong class="text-rose-400">-2 HP</strong> & grants <strong class="text-amber-400">+40 $DEF</strong> per strike
+                <p class="text-[10px] font-mono mt-1 leading-tight" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">
+                  Deals <strong class="text-rose-400 font-bold">2x DMG</strong> & doubles all <strong class="text-amber-400 font-bold">$DEF</strong> rewards
                 </p>
               </div>
 
-              <!-- Price & Button -->
-              <div class="flex items-center justify-between gap-2 mt-auto">
-                <span class="text-xs font-mono font-black" :class="isWhiteTheme ? 'text-zinc-900' : 'text-zinc-200'">
+              <!-- Price & Action -->
+              <div class="flex items-center justify-between gap-2 mt-2">
+                <span class="text-xs font-mono font-black tracking-tight" :class="isWhiteTheme ? 'text-zinc-950' : 'text-zinc-100'">
                   200 WLD
                 </span>
 
                 <button 
                   v-if="hasSword"
                   disabled
-                  class="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold uppercase border flex items-center gap-1 cursor-default shrink-0"
-                  :class="isWhiteTheme ? 'bg-emerald-100 border-emerald-400 text-emerald-800' : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'"
+                  class="px-2.5 py-1 rounded-xl text-[10px] font-mono font-extrabold uppercase border flex items-center gap-1 cursor-default shrink-0 shadow-sm"
+                  :class="isWhiteTheme 
+                    ? 'bg-cyan-100 border-cyan-400 text-cyan-950' 
+                    : 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]'"
                 >
-                  <Check class="w-3 h-3" />
+                  <Check class="w-3 h-3 text-cyan-400" />
                   <span>EQUIPPED</span>
                 </button>
 
@@ -335,12 +359,12 @@ const formatFullNumber = (val?: number) => {
                   v-else
                   @click="handlePurchase('sword')"
                   :disabled="isProcessing === 'sword'"
-                  class="px-3 py-1 rounded-lg text-[10px] font-mono font-black uppercase transition-all shadow-sm active:scale-95 flex items-center gap-1 shrink-0"
+                  class="px-3.5 py-1.5 rounded-xl text-[10px] font-mono font-black uppercase transition-all shadow-md active:scale-95 flex items-center gap-1 shrink-0 cursor-pointer disabled:opacity-50"
                   :class="isWhiteTheme 
-                    ? 'bg-black text-white hover:bg-zinc-800' 
-                    : 'bg-white text-black hover:bg-zinc-200'"
+                    ? 'bg-black text-white hover:bg-zinc-800 shadow-black/20' 
+                    : 'bg-gradient-to-r from-cyan-400 to-blue-500 text-black hover:opacity-90 shadow-[0_0_15px_rgba(6,182,212,0.3)]'"
                 >
-                  <Sparkles class="w-2.5 h-2.5" />
+                  <Sparkles class="w-3 h-3" />
                   <span>{{ isProcessing === 'sword' ? 'BUYING...' : 'BUY' }}</span>
                 </button>
               </div>
@@ -349,56 +373,73 @@ const formatFullNumber = (val?: number) => {
 
           <!-- ITEM 2: TACHYON CHRONO-BOW -->
           <div 
-            class="rounded-xl border p-3 transition-all flex items-center gap-3"
+            class="group relative rounded-2xl border p-3.5 transition-all duration-300 flex items-center gap-3.5 overflow-hidden"
             :class="hasBow 
-              ? (isWhiteTheme ? 'bg-emerald-50/60 border-emerald-500/40' : 'bg-emerald-950/15 border-emerald-500/40')
-              : (isWhiteTheme ? 'bg-white border-black/10 shadow-sm' : 'bg-zinc-900/40 border-white/10 hover:border-violet-500/40')"
+              ? (isWhiteTheme 
+                  ? 'bg-gradient-to-r from-violet-50/80 via-white to-purple-50/40 border-violet-500/40 shadow-sm' 
+                  : 'bg-gradient-to-r from-violet-950/25 via-zinc-950 to-zinc-900 border-violet-500/40 shadow-[0_0_20px_rgba(168,85,247,0.15)]')
+              : (isWhiteTheme 
+                  ? 'bg-white border-black/10 hover:border-violet-500/50 hover:shadow-md' 
+                  : 'bg-zinc-950/90 border-white/10 hover:border-violet-500/50 hover:shadow-[0_0_20px_rgba(168,85,247,0.1)]')"
           >
-            <!-- Weapon Render -->
+            <!-- Ambient Card Backglow -->
             <div 
-              class="w-20 h-20 rounded-xl bg-black border border-white/10 overflow-hidden shrink-0 flex items-center justify-center relative p-1 shadow-inner"
+              class="absolute -top-10 -left-10 w-28 h-28 rounded-full blur-[40px] pointer-events-none transition-opacity"
+              :class="hasBow ? 'bg-violet-500/20 opacity-100' : 'bg-violet-500/10 opacity-50 group-hover:opacity-100'"
+            />
+
+            <!-- Weapon Render Box -->
+            <div 
+              class="w-20 h-20 sm:w-22 sm:h-22 rounded-2xl bg-black/90 border overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner p-1 group/img"
+              :class="hasBow 
+                ? 'border-violet-500/50 shadow-[0_0_15px_rgba(168,85,247,0.25)]' 
+                : 'border-white/15 group-hover:border-violet-400/50'"
             >
               <img 
-                src="/items/bow.png" 
-                alt="Chrono-Bow" 
-                class="w-full h-full object-contain pointer-events-none"
+                src="/items/bow.jpg" 
+                alt="Tachyon Chrono-Bow" 
+                class="w-full h-full object-cover rounded-xl transition-transform duration-500 group-hover/img:scale-110 pointer-events-none"
               />
+              <!-- Energy Scanline Overlay -->
+              <div class="absolute inset-0 bg-gradient-to-t from-violet-500/20 via-transparent to-transparent pointer-events-none rounded-xl" />
             </div>
 
             <!-- Weapon Info -->
-            <div class="flex-1 min-w-0 flex flex-col justify-between h-20 py-0.5">
+            <div class="flex-1 min-w-0 flex flex-col justify-between py-0.5">
               <div>
                 <div class="flex items-center justify-between gap-1">
-                  <h3 class="font-extrabold text-xs sm:text-sm tracking-wide truncate">
-                    Chrono-Bow
+                  <h3 class="font-extrabold text-xs sm:text-sm tracking-wide truncate flex items-center gap-1.5">
+                    <span :class="isWhiteTheme ? 'text-zinc-950' : 'text-white'">Chrono-Bow</span>
                   </h3>
                   <span 
-                    class="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border shrink-0"
+                    class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md border shrink-0 tracking-wider shadow-sm"
                     :class="hasBow 
-                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' 
-                      : (isWhiteTheme ? 'bg-black/5 border-black/15 text-zinc-700' : 'bg-violet-500/10 border-violet-500/30 text-violet-400')"
+                      ? 'bg-violet-500/20 border-violet-500/50 text-violet-400' 
+                      : (isWhiteTheme ? 'bg-violet-100 border-violet-300 text-violet-950' : 'bg-violet-500/10 border-violet-500/30 text-violet-400')"
                   >
                     -50% COOLDOWN
                   </span>
                 </div>
-                <p class="text-[10px] font-mono mt-0.5 leading-tight" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">
-                  Strike cooldown reduced from 24h to <strong class="text-violet-400">12h</strong>
+                <p class="text-[10px] font-mono mt-1 leading-tight" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">
+                  Strike cooldown reduced from 24h to <strong class="text-violet-400 font-bold">12h</strong>
                 </p>
               </div>
 
-              <!-- Price & Button -->
-              <div class="flex items-center justify-between gap-2 mt-auto">
-                <span class="text-xs font-mono font-black" :class="isWhiteTheme ? 'text-zinc-900' : 'text-zinc-200'">
+              <!-- Price & Action -->
+              <div class="flex items-center justify-between gap-2 mt-2">
+                <span class="text-xs font-mono font-black tracking-tight" :class="isWhiteTheme ? 'text-zinc-950' : 'text-zinc-100'">
                   200 WLD
                 </span>
 
                 <button 
                   v-if="hasBow"
                   disabled
-                  class="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold uppercase border flex items-center gap-1 cursor-default shrink-0"
-                  :class="isWhiteTheme ? 'bg-emerald-100 border-emerald-400 text-emerald-800' : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'"
+                  class="px-2.5 py-1 rounded-xl text-[10px] font-mono font-extrabold uppercase border flex items-center gap-1 cursor-default shrink-0 shadow-sm"
+                  :class="isWhiteTheme 
+                    ? 'bg-violet-100 border-violet-400 text-violet-950' 
+                    : 'bg-violet-500/20 border-violet-500/50 text-violet-300 shadow-[0_0_10px_rgba(168,85,247,0.2)]'"
                 >
-                  <Check class="w-3 h-3" />
+                  <Check class="w-3 h-3 text-violet-400" />
                   <span>EQUIPPED</span>
                 </button>
 
@@ -406,12 +447,12 @@ const formatFullNumber = (val?: number) => {
                   v-else
                   @click="handlePurchase('bow')"
                   :disabled="isProcessing === 'bow'"
-                  class="px-3 py-1 rounded-lg text-[10px] font-mono font-black uppercase transition-all shadow-sm active:scale-95 flex items-center gap-1 shrink-0"
+                  class="px-3.5 py-1.5 rounded-xl text-[10px] font-mono font-black uppercase transition-all shadow-md active:scale-95 flex items-center gap-1 shrink-0 cursor-pointer disabled:opacity-50"
                   :class="isWhiteTheme 
-                    ? 'bg-black text-white hover:bg-zinc-800' 
-                    : 'bg-white text-black hover:bg-zinc-200'"
+                    ? 'bg-black text-white hover:bg-zinc-800 shadow-black/20' 
+                    : 'bg-gradient-to-r from-violet-400 to-fuchsia-500 text-black hover:opacity-90 shadow-[0_0_15px_rgba(168,85,247,0.3)]'"
                 >
-                  <Sparkles class="w-2.5 h-2.5" />
+                  <Sparkles class="w-3 h-3" />
                   <span>{{ isProcessing === 'bow' ? 'BUYING...' : 'BUY' }}</span>
                 </button>
               </div>

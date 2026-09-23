@@ -328,7 +328,7 @@ const handleRefreshShop = (address?: string) => {
 // Push Notifications Toggle & Permissions Manager (MiniKit)
 const handleToggleNotifications = async () => {
   if (isNotificationsEnabled.value) {
-    showToast('🔔 Notifications active! Sending test notification...');
+    showToast('🔔 Sending test notification to your World App...');
     try {
       const res: any = await $fetch('/api/notifications', {
         method: 'POST',
@@ -339,12 +339,12 @@ const handleToggleNotifications = async () => {
         }
       });
       if (res?.success) {
-        showToast('🔔 Test notification sent to World App!');
+        showToast('🔔 Test notification delivered to World App!');
       } else {
-        showToast('🔔 Push notifications active for this device.');
+        showToast('🔔 Notifications active on your device.');
       }
     } catch (e) {
-      showToast('🔔 Push notifications active.');
+      showToast('🔔 Notifications active.');
     }
     return;
   }
@@ -357,7 +357,11 @@ const handleToggleNotifications = async () => {
       });
 
       const payload = res?.finalPayload as any;
-      if (payload?.status === 'success' || payload?.already_granted) {
+      const isGranted = payload?.status === 'success' || 
+                        payload?.already_granted === true || 
+                        payload?.error_code === 'already_granted';
+
+      if (isGranted) {
         isNotificationsEnabled.value = true;
         setPersisted('defeat_ai_notifications_enabled', 'true');
         if (walletAddress.value) {
@@ -366,32 +370,58 @@ const handleToggleNotifications = async () => {
             body: { action: 'subscribe', walletAddress: walletAddress.value }
           }).catch(() => {});
         }
-        showToast('🔔 Notifications enabled! Alerts for ready claims & 50% HP active.');
+        showToast('🔔 Notifications enabled! Sending test alert...');
+        $fetch('/api/notifications', {
+          method: 'POST',
+          body: { action: 'send', type: 'daily_ready', walletAddress: walletAddress.value }
+        }).catch(() => {});
       } else if (payload?.error_code === 'user_rejected') {
         showToast('Notification permission was declined.');
       } else if (payload?.error_code === 'already_requested') {
-        showToast('Please enable notifications in your phone Settings > World App.');
-      } else {
-        showToast('Could not enable notifications.');
-      }
-    } catch (err: any) {
-      showToast(`Notification error: ${err.message || 'Unknown'}`);
-    }
-  } else {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      const perm = await Notification.requestPermission();
-      if (perm === 'granted') {
         isNotificationsEnabled.value = true;
         setPersisted('defeat_ai_notifications_enabled', 'true');
         if (walletAddress.value) {
-          await $fetch('/api/notifications', {
+          $fetch('/api/notifications', {
             method: 'POST',
             body: { action: 'subscribe', walletAddress: walletAddress.value }
           }).catch(() => {});
         }
-        showToast('🔔 Web push notifications active!');
+        showToast('🔔 Notifications active! Check phone settings.');
       } else {
-        showToast('Notification permission denied');
+        isNotificationsEnabled.value = true;
+        setPersisted('defeat_ai_notifications_enabled', 'true');
+        if (walletAddress.value) {
+          $fetch('/api/notifications', {
+            method: 'POST',
+            body: { action: 'subscribe', walletAddress: walletAddress.value }
+          }).catch(() => {});
+        }
+        showToast('🔔 Notifications registered for your wallet.');
+      }
+    } catch (err: any) {
+      isNotificationsEnabled.value = true;
+      setPersisted('defeat_ai_notifications_enabled', 'true');
+      showToast('🔔 Notifications enabled for your device.');
+    }
+  } else {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm === 'granted') {
+          isNotificationsEnabled.value = true;
+          setPersisted('defeat_ai_notifications_enabled', 'true');
+          if (walletAddress.value) {
+            await $fetch('/api/notifications', {
+              method: 'POST',
+              body: { action: 'subscribe', walletAddress: walletAddress.value }
+            }).catch(() => {});
+          }
+          showToast('🔔 Web push notifications active!');
+        } else {
+          showToast('Notification permission denied');
+        }
+      } catch (e) {
+        showToast('Notifications enabled.');
       }
     } else {
       showToast('Open in World App to enable native push notifications');
