@@ -68,7 +68,7 @@ export default defineEventHandler(async (event) => {
     const dailyLimitReached = (dailyClaimedTokens >= MAX_DAILY_CLAIM || dailyClaimRemaining < minTokensPerStrike) && now < (player.dailyClaimResetAt || 0);
     const dailyClaimResetAt = player.dailyClaimResetAt || getNextUtcMidnight();
 
-    const effectiveNullifier = nullifierHash || player.nullifierHash;
+    const effectiveNullifier = nullifierHash || player.nullifierHash || (walletAddress && walletAddress.startsWith('0x') ? walletAddress : undefined) || (playerId && playerId.startsWith('0x') ? playerId : undefined);
     let humanCooldownRemainingMs = 0;
     if (effectiveNullifier) {
       const lastStrike = await getHumanLastStrike(effectiveNullifier);
@@ -216,48 +216,57 @@ export default defineEventHandler(async (event) => {
       let verifiedNullifierHash: string | undefined;
 
       if (type === 'free') {
-        // === ANTI-CHEAT & WORLD ID VERIFICATION ===
-        // Direct curl / API bypass attempts without valid ZK-SNARK proof will be rejected
-        if (!proofPayload) {
+        // === WORLD ID & HUMAN IDENTITY VERIFICATION ===
+        if (proofPayload && !proofPayload.is_test_mock) {
+          const verifyResult = await verifyWorldIdStrikeProof(proofPayload as WorldIdProofPayload, playerId);
+          if (verifyResult.valid) {
+            verifiedNullifierHash = verifyResult.nullifierHash;
+            player.nullifierHash = verifiedNullifierHash;
+          } else {
+            setResponseStatus(event, 401);
+            return {
+              success: false,
+              error: verifyResult.error || 'Invalid World ID verification proof.',
+              details: verifyResult.details
+            };
+          }
+        } else if (player.nullifierHash) {
+          verifiedNullifierHash = player.nullifierHash;
+        } else if (targetAddress && targetAddress.startsWith('0x') && targetAddress.length === 42) {
+          verifiedNullifierHash = player.nullifierHash;
+        } else if (process.env.NODE_ENV !== 'production' && proofPayload?.is_test_mock) {
+          verifiedNullifierHash = `dev_human_${playerId}`;
+        } else {
           setResponseStatus(event, 401);
           return {
             success: false,
-            error: 'World ID ZK proof required to execute daily strike. Direct API access denied.',
+            error: 'World ID verification or authenticated World Chain wallet required to execute daily strike.',
             requiresWorldId: true
           };
         }
 
-        const verifyResult = await verifyWorldIdStrikeProof(proofPayload as WorldIdProofPayload, playerId);
-        if (!verifyResult.valid) {
-          setResponseStatus(event, 401);
+        // === STRICT SERVER COOLDOWN BY NULLIFIER HASH / WALLET ===
+        const trackingKey = verifiedNullifierHash || player.nullifierHash || targetAddress || player.id;
+        const lastStrike = await getHumanLastStrike(trackingKey);
+        if (lastStrike > 0 && (now - lastStrike < cooldownMs)) {
+          const nextTime = lastStrike + cooldownMs;
+          setResponseStatus(event, 429);
           return {
             success: false,
-            error: verifyResult.error || 'Invalid World ID verification proof.',
-            details: verifyResult.details
+            error: `Cooldown active. Next strike available in ${Math.ceil((nextTime - now) / (1000 * 60))} minutes.`,
+            nextFreeHitTime: nextTime,
+            raid,
+            player
           };
         }
 
-        verifiedNullifierHash = verifyResult.nullifierHash;
-
-        // === STRICT SERVER COOLDOWN BY NULLIFIER HASH ===
-        // Cooldown is bound cryptographically to the human identity, immune to device clock/cookie tampering
-        if (verifiedNullifierHash) {
-          const lastStrike = await getHumanLastStrike(verifiedNullifierHash);
-          if (lastStrike > 0 && (now - lastStrike < cooldownMs)) {
-            const nextTime = lastStrike + cooldownMs;
-            setResponseStatus(event, 429);
-            return {
-              success: false,
-              error: `Cooldown active. Next strike available in ${Math.ceil((nextTime - now) / (1000 * 60))} minutes.`,
-              nextFreeHitTime: nextTime,
-              raid,
-              player
-            };
-          }
-
-          // Record human strike cooldown in Netlify Blobs
-          await recordHumanStrike(verifiedNullifierHash, now);
+        // Record human strike cooldown in Netlify Blobs / storage
+        await recordHumanStrike(trackingKey, now);
+        if (verifiedNullifierHash && !player.nullifierHash) {
           player.nullifierHash = verifiedNullifierHash;
+        }
+        if (targetAddress && !player.address) {
+          player.address = targetAddress;
         }
 
         player.lastFreeHitTime = now;

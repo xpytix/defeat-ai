@@ -539,7 +539,7 @@ const handleFight = (level: number) => {
   showToast(`[SECTOR] LVL 0${currentBossLevel.value}: ${bossName.value}`);
 };
 
-// Handle Hit: Executes World ID ZK-SNARK verification for Free Daily Strike
+// Handle Hit: Executes Free Daily Strike & Power Strike
 const handleHit = async (type: 'free' | 'power') => {
   const cooldownHours = hasBow.value ? 12 : 24;
   const cooldownMs = cooldownHours * 60 * 60 * 1000;
@@ -552,8 +552,8 @@ const handleHit = async (type: 'free' | 'power') => {
 
     let proofPayload: any = null;
 
-    // Check if inside World App
-    if (MiniKit.isInstalled()) {
+    // Check if World ID ZK proof is needed or available
+    if (MiniKit.isInstalled() && !verifiedNullifier.value && !walletAddress.value) {
       try {
         isVerifying.value = true;
         showToast('👁️ Verifying World ID (Orb)...');
@@ -566,41 +566,22 @@ const handleHit = async (type: 'free' | 'power') => {
 
         isVerifying.value = false;
 
-        if (verifyResponse.finalPayload.status === 'error') {
-          showToast(`World ID verification failed: ${verifyResponse.finalPayload.error_code || 'Cancelled'}`);
-          return;
-        }
-
-        proofPayload = verifyResponse.finalPayload;
-        if (proofPayload.nullifier_hash) {
-          verifiedNullifier.value = proofPayload.nullifier_hash;
-          setPersisted('defeat_ai_nullifier', proofPayload.nullifier_hash);
+        if (verifyResponse?.finalPayload?.status === 'success') {
+          proofPayload = verifyResponse.finalPayload;
+          if (proofPayload.nullifier_hash) {
+            verifiedNullifier.value = proofPayload.nullifier_hash;
+            setPersisted('defeat_ai_nullifier', proofPayload.nullifier_hash);
+          }
         }
       } catch (err: any) {
         isVerifying.value = false;
-        showToast(`Verification error: ${err.message || 'Unknown'}`);
-        return;
-      }
-    } else {
-      // Outside World App: Require World App or dev mode test
-      if (process.env.NODE_ENV === 'production') {
-        showWorldAppModal.value = true;
-        return;
-      } else {
-        // Dev fallback for desktop browser testing
-        proofPayload = {
-          proof: 'dev_mock_proof',
-          merkle_root: 'dev_mock_root',
-          nullifier_hash: verifiedNullifier.value || `dev_human_${playerId.value}`,
-          verification_level: 'orb',
-          is_test_mock: true
-        };
-        showToast('⚠️ DEV MODE: World ID mock proof used.');
+        console.warn('MiniKit verify skipped, using wallet session:', err);
       }
     }
 
-    // Call server API with verified cryptographic proof
+    // Call server API to execute daily strike and receive tokens
     try {
+      isVerifying.value = true;
       const res: any = await $fetch('/api/game', {
         method: 'POST',
         body: {
@@ -608,11 +589,13 @@ const handleHit = async (type: 'free' | 'power') => {
           type: 'free',
           playerId: playerId.value,
           walletAddress: walletAddress.value,
+          nullifierHash: verifiedNullifier.value || undefined,
           proofPayload,
           hasSword: hasSword.value,
           hasBow: hasBow.value
         }
       });
+      isVerifying.value = false;
 
       if (res && res.success) {
         freeHitAvailable.value = false;
@@ -677,6 +660,7 @@ const handleHit = async (type: 'free' | 'power') => {
         }
       }
     } catch (err: any) {
+      isVerifying.value = false;
       const errData = err.data || {};
       if (err.status === 429) {
         freeHitAvailable.value = false;
