@@ -325,30 +325,23 @@ const handleRefreshShop = (address?: string) => {
   fetchRaidState(false);
 };
 
-// Push Notifications Toggle & Permissions Manager (MiniKit)
+// Push Notifications Toggle & Permissions Manager (MiniKit: Strict ON/OFF)
 const handleToggleNotifications = async () => {
   if (isNotificationsEnabled.value) {
-    showToast('🔔 Sending test notification to your World App...');
-    try {
-      const res: any = await $fetch('/api/notifications', {
+    // Turn OFF
+    isNotificationsEnabled.value = false;
+    setPersisted('defeat_ai_notifications_enabled', 'false');
+    if (walletAddress.value) {
+      $fetch('/api/notifications', {
         method: 'POST',
-        body: {
-          action: 'send',
-          type: 'daily_ready',
-          walletAddress: walletAddress.value || undefined
-        }
-      });
-      if (res?.success) {
-        showToast('🔔 Test notification delivered to World App!');
-      } else {
-        showToast('🔔 Notifications active on your device.');
-      }
-    } catch (e) {
-      showToast('🔔 Notifications active.');
+        body: { action: 'unsubscribe', walletAddress: walletAddress.value }
+      }).catch(() => {});
     }
+    showToast('🔕 Notifications turned OFF');
     return;
   }
 
+  // Turn ON
   if (MiniKit.isInstalled()) {
     try {
       showToast('Requesting notification permission in World App...');
@@ -370,11 +363,7 @@ const handleToggleNotifications = async () => {
             body: { action: 'subscribe', walletAddress: walletAddress.value }
           }).catch(() => {});
         }
-        showToast('🔔 Notifications enabled! Sending test alert...');
-        $fetch('/api/notifications', {
-          method: 'POST',
-          body: { action: 'send', type: 'daily_ready', walletAddress: walletAddress.value }
-        }).catch(() => {});
+        showToast('🔔 Notifications turned ON');
       } else if (payload?.error_code === 'user_rejected') {
         showToast('Notification permission was declined.');
       } else if (payload?.error_code === 'already_requested') {
@@ -386,7 +375,7 @@ const handleToggleNotifications = async () => {
             body: { action: 'subscribe', walletAddress: walletAddress.value }
           }).catch(() => {});
         }
-        showToast('🔔 Notifications active! Check phone settings.');
+        showToast('🔔 Notifications turned ON (Check phone settings if needed)');
       } else {
         isNotificationsEnabled.value = true;
         setPersisted('defeat_ai_notifications_enabled', 'true');
@@ -396,12 +385,12 @@ const handleToggleNotifications = async () => {
             body: { action: 'subscribe', walletAddress: walletAddress.value }
           }).catch(() => {});
         }
-        showToast('🔔 Notifications registered for your wallet.');
+        showToast('🔔 Notifications turned ON');
       }
     } catch (err: any) {
       isNotificationsEnabled.value = true;
       setPersisted('defeat_ai_notifications_enabled', 'true');
-      showToast('🔔 Notifications enabled for your device.');
+      showToast('🔔 Notifications turned ON');
     }
   } else {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -416,12 +405,14 @@ const handleToggleNotifications = async () => {
               body: { action: 'subscribe', walletAddress: walletAddress.value }
             }).catch(() => {});
           }
-          showToast('🔔 Web push notifications active!');
+          showToast('🔔 Notifications turned ON');
         } else {
           showToast('Notification permission denied');
         }
       } catch (e) {
-        showToast('Notifications enabled.');
+        isNotificationsEnabled.value = true;
+        setPersisted('defeat_ai_notifications_enabled', 'true');
+        showToast('🔔 Notifications turned ON');
       }
     } else {
       showToast('Open in World App to enable native push notifications');

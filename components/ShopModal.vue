@@ -264,14 +264,27 @@ const formatFullNumber = (val?: number) => {
               </div>
             </div>
 
+            <!-- Interactive ON / OFF Switch Toggle -->
             <button
               @click="emit('toggleNotifications')"
-              class="text-[10px] font-mono font-black px-3 py-1.5 rounded-xl border shrink-0 transition-all active:scale-95 flex items-center gap-1 cursor-pointer"
+              type="button"
+              class="relative inline-flex h-7 w-14 items-center shrink-0 cursor-pointer rounded-full border transition-all duration-200 ease-in-out active:scale-95"
               :class="isNotificationsEnabled 
-                ? (isWhiteTheme ? 'bg-zinc-100 border-black/15 text-zinc-800 hover:bg-zinc-200' : 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/25') 
-                : 'bg-cyan-500 text-black border-cyan-400 hover:bg-cyan-400 font-extrabold shadow-[0_0_12px_rgba(6,182,212,0.4)]'"
+                ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)]' 
+                : (isWhiteTheme ? 'bg-zinc-200 border-zinc-300' : 'bg-zinc-800 border-zinc-700')"
             >
-              <span>{{ isNotificationsEnabled ? '⚡ Test Alert' : '🔔 Enable' }}</span>
+              <!-- Status text inside switch -->
+              <span 
+                class="absolute text-[9px] font-mono font-black uppercase tracking-wider select-none"
+                :class="isNotificationsEnabled ? 'left-2 text-black' : 'right-2 text-zinc-400'"
+              >
+                {{ isNotificationsEnabled ? 'ON' : 'OFF' }}
+              </span>
+              <!-- Thumb Knob -->
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition duration-200 ease-in-out"
+                :class="isNotificationsEnabled ? 'translate-x-7.5' : 'translate-x-0.5'"
+              />
             </button>
           </div>
         </div>
