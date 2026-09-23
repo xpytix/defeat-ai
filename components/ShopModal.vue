@@ -58,6 +58,11 @@ const activeWallet = computed(() => {
   return props.walletAddress || props.playerAddress || '';
 });
 
+// Total $DEF available across in-game rewards and on-chain wallet
+const totalAvailableDef = computed(() => {
+  return (props.userTokens || 0) + (props.onChainTokens || 0);
+});
+
 // Staking Live Real-Time Yield Calculation (Smooth ticking animation)
 const liveAccruedYield = ref<number>(props.accumulatedStakeYield || 0);
 let liveYieldInterval: any = null;
@@ -383,15 +388,15 @@ const formatFullNumber = (val?: number) => {
                 </div>
               </div>
 
-              <!-- Staker Perk Badge -->
+              <!-- Lock period / terms badge -->
               <span 
                 class="text-[9px] font-mono font-bold px-2 py-0.5 rounded-md border flex items-center gap-1"
                 :class="stakedAmount && stakedAmount >= 2000
                   ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-sm'
                   : 'bg-zinc-800/60 text-zinc-400 border-white/10'"
               >
-                <Award class="w-3 h-3 text-amber-400" />
-                <span>+1 STRIKE DMG</span>
+                <Lock class="w-3 h-3 text-amber-400" />
+                <span>{{ stakedAmount && stakedAmount > 0 ? 'ACTIVE VAULT' : 'MIN 2K $DEF' }}</span>
               </span>
             </div>
 
@@ -454,7 +459,7 @@ const formatFullNumber = (val?: number) => {
                   :class="isWhiteTheme 
                     ? 'bg-zinc-100 hover:bg-zinc-200 border-black/10 text-zinc-800' 
                     : 'bg-zinc-900 hover:bg-zinc-800 border-white/15 text-zinc-300 hover:text-white'"
-                  title="Withdraw staked tokens back to available in-game balance"
+                  title="Withdraw staked tokens back to available balance"
                 >
                   <Unlock class="w-3.5 h-3.5" />
                 </button>
@@ -465,7 +470,7 @@ const formatFullNumber = (val?: number) => {
                 <span class="text-zinc-400">Increase Stake (up to 10k):</span>
                 <div class="flex items-center gap-1">
                   <button
-                    v-if="(userTokens || 0) >= 2000 && (stakedAmount + 2000) <= 10000"
+                    v-if="totalAvailableDef >= 2000 && (stakedAmount + 2000) <= 10000"
                     @click="handleStakeClick(2000)"
                     :disabled="isStakingProcessing"
                     class="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 font-bold transition-all"
@@ -473,8 +478,8 @@ const formatFullNumber = (val?: number) => {
                     +2,000
                   </button>
                   <button
-                    v-if="(userTokens || 0) >= 1000 && (stakedAmount + Math.min(userTokens || 0, 10000 - stakedAmount)) >= 2000"
-                    @click="handleStakeClick(Math.min(userTokens || 0, 10000 - stakedAmount))"
+                    v-if="totalAvailableDef >= 500 && (stakedAmount + Math.min(totalAvailableDef, 10000 - stakedAmount)) >= 2000"
+                    @click="handleStakeClick(Math.min(totalAvailableDef, 10000 - stakedAmount))"
                     :disabled="isStakingProcessing"
                     class="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 font-bold transition-all"
                   >
@@ -487,14 +492,14 @@ const formatFullNumber = (val?: number) => {
             <!-- STATE B: USER HAS NO ACTIVE STAKE (SHOW STAKE ONBOARDING & PRESETS) -->
             <div v-else class="space-y-2.5">
               <p class="text-[10px] font-mono leading-relaxed" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">
-                Lock <strong class="text-amber-400 font-bold">2,000 – 10,000 $DEF</strong> to generate passive yield at <strong>30% APY</strong> and gain a permanent <strong class="text-emerald-400 font-bold">+1 Strike DMG</strong> perk.
+                Lock <strong class="text-amber-400 font-bold">2,000 – 10,000 $DEF</strong> to generate passive yield at <strong class="text-emerald-400 font-bold">30% APY</strong> (calculated per-second).
               </p>
 
-              <!-- In-Game Token Balance Notice -->
+              <!-- In-Game + Wallet Token Balance Notice -->
               <div class="flex items-center justify-between text-[11px] font-mono px-1">
-                <span class="text-zinc-400">Available In-Game:</span>
-                <span class="font-bold font-mono" :class="(userTokens || 0) >= 2000 ? 'text-emerald-400' : 'text-amber-400'">
-                  {{ formatTokens(userTokens) }} $DEF
+                <span class="text-zinc-400">Available Balance:</span>
+                <span class="font-bold font-mono" :class="totalAvailableDef >= 2000 ? 'text-emerald-400' : 'text-amber-400'">
+                  {{ formatTokens(totalAvailableDef) }} $DEF
                 </span>
               </div>
 
@@ -502,7 +507,7 @@ const formatFullNumber = (val?: number) => {
               <div class="grid grid-cols-3 gap-1.5">
                 <button
                   @click="customStakeAmount = 2000; handleStakeClick(2000)"
-                  :disabled="(userTokens || 0) < 2000 || isStakingProcessing"
+                  :disabled="totalAvailableDef < 2000 || isStakingProcessing"
                   class="py-2 px-1.5 rounded-xl border text-center transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                   :class="isWhiteTheme 
                     ? 'bg-zinc-100 hover:bg-emerald-50 border-black/10 text-zinc-900' 
@@ -514,7 +519,7 @@ const formatFullNumber = (val?: number) => {
 
                 <button
                   @click="customStakeAmount = 5000; handleStakeClick(5000)"
-                  :disabled="(userTokens || 0) < 5000 || isStakingProcessing"
+                  :disabled="totalAvailableDef < 5000 || isStakingProcessing"
                   class="py-2 px-1.5 rounded-xl border text-center transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                   :class="isWhiteTheme 
                     ? 'bg-zinc-100 hover:bg-emerald-50 border-black/10 text-zinc-900' 
@@ -526,7 +531,7 @@ const formatFullNumber = (val?: number) => {
 
                 <button
                   @click="customStakeAmount = 10000; handleStakeClick(10000)"
-                  :disabled="(userTokens || 0) < 10000 || isStakingProcessing"
+                  :disabled="totalAvailableDef < 10000 || isStakingProcessing"
                   class="py-2 px-1.5 rounded-xl border text-center transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                   :class="isWhiteTheme 
                     ? 'bg-zinc-100 hover:bg-emerald-50 border-black/10 text-zinc-900' 
@@ -538,7 +543,7 @@ const formatFullNumber = (val?: number) => {
               </div>
 
               <!-- Fallback if not enough tokens -->
-              <div v-if="(userTokens || 0) < 2000" class="pt-1">
+              <div v-if="totalAvailableDef < 2000" class="pt-1">
                 <a 
                   href="https://app.uniswap.org/swap?chain=worldchain&inputCurrency=0x2cFc85d8E48F8EAB294be644d9E25C3030863003&outputCurrency=0xb767B50e80084330Fe2bF5F2C3CA5d6E0b73B6f6"
                   target="_blank"

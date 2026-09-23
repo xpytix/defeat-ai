@@ -88,8 +88,8 @@ const activeAttackerCount = computed(() => {
 });
 
 const isStaker = computed(() => (props.stakedAmount || 0) >= 2000);
-const dailyStrikeDmg = computed(() => (props.hasSword ? 2 : 1) + (isStaker.value ? 1 : 0));
-const powerStrikeDmg = computed(() => (props.hasSword ? 4 : 2) + (isStaker.value ? 1 : 0));
+const dailyStrikeDmg = computed(() => props.hasSword ? 2 : 1);
+const powerStrikeDmg = computed(() => props.hasSword ? 4 : 2);
 
 // Layered Volumetric Particles: Foreground & Background
 const foregroundParticles = ref<Particle[]>([]);
@@ -729,7 +729,7 @@ const formatTokens = (val: number) => {
                 : (isWhiteTheme 
                     ? 'bg-white/80 text-zinc-400 border-black/10 hover:border-black/30 hover:text-zinc-700' 
                     : 'bg-black/60 text-zinc-500 border-white/10 hover:border-white/20 hover:text-zinc-300')"
-              :title="isStaker ? `Quantum Staking Vault (${(stakedAmount || 0).toLocaleString()} $DEF · +1 DMG Active) - Click to View` : 'Quantum Staking Vault (30% APY) - Click to Open'"
+              :title="isStaker ? `Quantum Staking Vault (${(stakedAmount || 0).toLocaleString()} $DEF · 30% APY Active) - Click to View` : 'Quantum Staking Vault (30% APY) - Click to Open'"
             >
               <Lock v-if="isStaker" class="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-400 transition-transform group-hover:scale-110" />
               <Coins v-else class="w-4 h-4 sm:w-4.5 sm:h-4.5 transition-transform group-hover:scale-110" />

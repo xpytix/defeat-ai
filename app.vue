@@ -449,7 +449,8 @@ const handleStakeTokens = async (amount: number) => {
         action: 'stake',
         amount,
         playerId: playerId.value,
-        walletAddress: walletAddress.value
+        walletAddress: walletAddress.value,
+        onChainTokens: onChainTokens.value
       }
     });
 

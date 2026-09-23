@@ -323,13 +323,6 @@ export default defineEventHandler(async (event) => {
         weapon = player.hasSword ? 'Plasma Power Strike (4x)' : 'Power Strike (2 WLD)';
       }
 
-      // Cyber Staking Perk (+1 DMG if staked >= 2000 $DEF)
-      const isStaker = Boolean(player.stakedAmount && player.stakedAmount >= 2000);
-      if (isStaker) {
-        damage += 1;
-        weapon += ' [+1 Staker DMG]';
-      }
-
       // Deduct Boss HP globally
       raid.currentHp = Math.max(0, raid.currentHp - damage);
       raid.totalStrikes += 1;
@@ -640,19 +633,26 @@ export default defineEventHandler(async (event) => {
         };
       }
 
-      if (player.tokens < stakeAmount) {
+      const onChainBalance = body?.onChainTokens ? Math.floor(Number(body.onChainTokens)) : 0;
+      const totalAvailable = (player.tokens || 0) + onChainBalance;
+
+      if (totalAvailable < stakeAmount) {
         setResponseStatus(event, 400);
         return { 
           success: false, 
-          error: `Insufficient $DEF balance. You have ${player.tokens.toLocaleString()} $DEF available.` 
+          error: `Insufficient $DEF balance. You have ${totalAvailable.toLocaleString()} $DEF available (in-game + wallet).` 
         };
       }
 
       // 1. Accrue pending yield before updating stake
       updatePlayerStakeYield(player);
 
-      // 2. Transfer tokens to vault
-      player.tokens = Math.max(0, player.tokens - stakeAmount);
+      // 2. Transfer tokens to vault (deduct available in-game tokens first)
+      if (player.tokens >= stakeAmount) {
+        player.tokens -= stakeAmount;
+      } else {
+        player.tokens = 0;
+      }
       player.stakedAmount = newTotalStaked;
       player.stakedAt = Date.now();
 
