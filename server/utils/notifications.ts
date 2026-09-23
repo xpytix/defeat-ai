@@ -180,13 +180,7 @@ export async function sendWorldAppNotification(
     const payload = {
       app_id: APP_ID,
       wallet_addresses: addresses,
-      localisations: [
-        {
-          language: 'en',
-          title,
-          message
-        }
-      ],
+      localisations,
       mini_app_path: `worldapp://mini-app?app_id=${APP_ID}`
     };
 
