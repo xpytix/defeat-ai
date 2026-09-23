@@ -607,7 +607,14 @@ onMounted(() => {
     if (savedBow !== null) hasBow.value = savedBow === 'true';
 
     const savedNotifs = getPersisted('defeat_ai_notifications_enabled');
-    if (savedNotifs === 'true') isNotificationsEnabled.value = true;
+    if (savedNotifs === 'true') {
+      isNotificationsEnabled.value = true;
+    } else if (savedNotifs === 'false') {
+      isNotificationsEnabled.value = false;
+    } else {
+      isNotificationsEnabled.value = true;
+      setPersisted('defeat_ai_notifications_enabled', 'true');
+    }
 
     const savedStaked = getPersisted('defeat_ai_staked_amount');
     if (savedStaked) stakedAmount.value = parseInt(savedStaked, 10);
@@ -615,18 +622,28 @@ onMounted(() => {
     const savedStakedAt = getPersisted('defeat_ai_staked_at');
     if (savedStakedAt) stakedAt.value = parseInt(savedStakedAt, 10);
 
+    // Ensure wallet is actively registered in backend database for background push alerts
+    if (isNotificationsEnabled.value && walletAddress.value) {
+      $fetch('/api/notifications', {
+        method: 'POST',
+        body: { action: 'subscribe', walletAddress: walletAddress.value }
+      }).catch(() => {});
+    }
+
     if (isInsideWorldApp.value && MiniKit.isInstalled()) {
       try {
         MiniKit.commandsAsync.getPermissions().then((permRes: any) => {
           if (permRes?.finalPayload?.status === 'success') {
             const hasPerm = (permRes.finalPayload as any).permissions?.notifications === true;
-            isNotificationsEnabled.value = hasPerm;
-            setPersisted('defeat_ai_notifications_enabled', hasPerm ? 'true' : 'false');
-            if (hasPerm && walletAddress.value) {
-              $fetch('/api/notifications', {
-                method: 'POST',
-                body: { action: 'subscribe', walletAddress: walletAddress.value }
-              }).catch(() => {});
+            if (hasPerm) {
+              isNotificationsEnabled.value = true;
+              setPersisted('defeat_ai_notifications_enabled', 'true');
+              if (walletAddress.value) {
+                $fetch('/api/notifications', {
+                  method: 'POST',
+                  body: { action: 'subscribe', walletAddress: walletAddress.value }
+                }).catch(() => {});
+              }
             }
           }
         }).catch(() => {});

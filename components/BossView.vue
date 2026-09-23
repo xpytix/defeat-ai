@@ -243,7 +243,29 @@ const updateDailyLimitCountdown = () => {
   dailyLimitCountdownText.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 };
 
-// Soundtrack BGM Audio System (Looped, Default Off)
+// Storage helper for sound preference
+const getPersistedAudio = () => {
+  try {
+    const item = localStorage.getItem('defeat_ai_audio_enabled');
+    if (item !== null) return item;
+  } catch (e) {}
+  try {
+    const match = document.cookie.match(new RegExp('(^| )defeat_ai_audio_enabled=([^;]+)'));
+    if (match) return match[2];
+  } catch (e) {}
+  return null;
+};
+
+const setPersistedAudio = (val: string) => {
+  try {
+    localStorage.setItem('defeat_ai_audio_enabled', val);
+  } catch (e) {}
+  try {
+    document.cookie = `defeat_ai_audio_enabled=${val};path=/;max-age=31536000;SameSite=Lax`;
+  } catch (e) {}
+};
+
+// Soundtrack BGM Audio System (Looped, Persistent State)
 const isAudioPlaying = ref(false);
 let bgmAudio: HTMLAudioElement | null = null;
 
@@ -263,6 +285,7 @@ const toggleAudio = () => {
   if (isAudioPlaying.value) {
     audio.pause();
     isAudioPlaying.value = false;
+    setPersistedAudio('false');
   } else {
     const targetSrc = `/audio/boss_${props.level || 1}.mp3`;
     if (!audio.src || !audio.src.endsWith(targetSrc)) {
@@ -271,9 +294,11 @@ const toggleAudio = () => {
     }
     audio.play().then(() => {
       isAudioPlaying.value = true;
+      setPersistedAudio('true');
     }).catch((err) => {
       console.warn('Audio playback was prevented by browser policy:', err);
       isAudioPlaying.value = false;
+      setPersistedAudio('false');
     });
   }
 };
@@ -369,6 +394,25 @@ onMounted(() => {
   }, 1000);
   initGyroscope();
   physicsFrameId = requestAnimationFrame(updatePhysics);
+
+  // Restore persistent audio setting
+  const savedAudio = getPersistedAudio();
+  if (savedAudio === 'true') {
+    isAudioPlaying.value = true;
+    setTimeout(() => {
+      const audio = initOrGetAudio();
+      if (audio && isAudioPlaying.value) {
+        const targetSrc = `/audio/boss_${props.level || 1}.mp3`;
+        if (!audio.src || !audio.src.endsWith(targetSrc)) {
+          audio.src = targetSrc;
+          audio.load();
+        }
+        audio.play().catch(() => {
+          // Autoplay blocked until next interaction
+        });
+      }
+    }, 400);
+  }
 });
 
 onUnmounted(() => {
