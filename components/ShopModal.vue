@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { 
   X, 
   Check, 
@@ -12,6 +12,12 @@ import {
   LogOut,
   Bell,
   BellRing,
+  Lock,
+  Unlock,
+  TrendingUp,
+  Flame,
+  Award,
+  Plus,
   Link as LinkIcon 
 } from 'lucide-vue-next';
 
@@ -26,6 +32,10 @@ const props = defineProps<{
   hasBow: boolean;
   isWhiteTheme?: boolean;
   isNotificationsEnabled?: boolean;
+  stakedAmount?: number;
+  stakedAt?: number;
+  accumulatedStakeYield?: number;
+  isStakingProcessing?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -35,13 +45,60 @@ const emit = defineEmits<{
   (e: 'disconnectWallet'): void;
   (e: 'refreshBalance', address?: string): void;
   (e: 'toggleNotifications'): void;
+  (e: 'stake', amount: number): void;
+  (e: 'unstake', amount?: number): void;
+  (e: 'claimStakeYield'): void;
 }>();
 
 const isProcessing = ref<string | null>(null);
+const customStakeAmount = ref<number>(2000);
+const isCustomStakeMode = ref(false);
 
 const activeWallet = computed(() => {
   return props.walletAddress || props.playerAddress || '';
 });
+
+// Staking Live Real-Time Yield Calculation (Smooth ticking animation)
+const liveAccruedYield = ref<number>(props.accumulatedStakeYield || 0);
+let liveYieldInterval: any = null;
+
+const updateLiveYield = () => {
+  const staked = props.stakedAmount || 0;
+  const stakedTime = props.stakedAt || 0;
+  const baseYield = props.accumulatedStakeYield || 0;
+  if (staked <= 0 || stakedTime <= 0) {
+    liveAccruedYield.value = baseYield;
+    return;
+  }
+  const now = Date.now();
+  const elapsedMs = Math.max(0, now - stakedTime);
+  const newlyAccrued = (staked * 0.30 * elapsedMs) / (365.25 * 24 * 3600 * 1000);
+  liveAccruedYield.value = baseYield + newlyAccrued;
+};
+
+onMounted(() => {
+  liveYieldInterval = setInterval(updateLiveYield, 120);
+});
+
+onUnmounted(() => {
+  if (liveYieldInterval) clearInterval(liveYieldInterval);
+});
+
+watch(() => [props.stakedAmount, props.stakedAt, props.accumulatedStakeYield], () => {
+  updateLiveYield();
+});
+
+const handleStakeClick = (amount: number) => {
+  emit('stake', amount);
+};
+
+const handleUnstakeClick = () => {
+  emit('unstake');
+};
+
+const handleClaimYieldClick = () => {
+  emit('claimStakeYield');
+};
 
 const handlePurchase = (item: 'sword' | 'bow') => {
   if (item === 'sword' && props.hasSword) return;
@@ -286,6 +343,213 @@ const formatFullNumber = (val?: number) => {
                 :class="isNotificationsEnabled ? 'translate-x-7.5' : 'translate-x-0.5'"
               />
             </button>
+          </div>
+
+          <!-- 2. QUANTUM STAKING VAULT (30% APY · 2K-10K $DEF) -->
+          <div 
+            class="p-3.5 rounded-2xl border transition-all relative overflow-hidden"
+            :class="stakedAmount && stakedAmount > 0
+              ? (isWhiteTheme ? 'bg-emerald-50/70 border-emerald-500/40 shadow-sm' : 'bg-gradient-to-b from-emerald-950/30 to-zinc-950 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.12)]')
+              : (isWhiteTheme ? 'bg-white border-amber-500/30 shadow-sm' : 'bg-zinc-950/80 border-amber-500/30')"
+          >
+            <!-- Ambient Glow -->
+            <div 
+              class="absolute -top-12 -right-12 w-32 h-32 rounded-full blur-[40px] pointer-events-none"
+              :class="stakedAmount && stakedAmount > 0 ? 'bg-emerald-500/20' : 'bg-amber-500/15'"
+            />
+
+            <!-- Vault Header -->
+            <div class="flex items-center justify-between gap-2 mb-2.5">
+              <div class="flex items-center gap-1.5">
+                <div 
+                  class="w-6 h-6 rounded-lg flex items-center justify-center border"
+                  :class="stakedAmount && stakedAmount > 0 
+                    ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' 
+                    : 'bg-amber-500/20 border-amber-500/50 text-amber-400'"
+                >
+                  <Lock v-if="stakedAmount && stakedAmount > 0" class="w-3.5 h-3.5" />
+                  <TrendingUp v-else class="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h4 class="text-xs font-mono font-black uppercase tracking-wider flex items-center gap-1.5">
+                    <span>STAKING VAULT</span>
+                    <span 
+                      class="text-[9px] font-black px-1.5 py-0.2 rounded-full border animate-pulse"
+                      :class="isWhiteTheme ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-amber-500/20 text-amber-400 border-amber-500/40'"
+                    >
+                      30.0% APY
+                    </span>
+                  </h4>
+                </div>
+              </div>
+
+              <!-- Staker Perk Badge -->
+              <span 
+                class="text-[9px] font-mono font-bold px-2 py-0.5 rounded-md border flex items-center gap-1"
+                :class="stakedAmount && stakedAmount >= 2000
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-sm'
+                  : 'bg-zinc-800/60 text-zinc-400 border-white/10'"
+              >
+                <Award class="w-3 h-3 text-amber-400" />
+                <span>+1 STRIKE DMG</span>
+              </span>
+            </div>
+
+            <!-- STATE A: USER HAS ACTIVE STAKE -->
+            <div v-if="stakedAmount && stakedAmount > 0" class="space-y-3">
+              <!-- Live Metrics Grid -->
+              <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                <!-- Staked Amount -->
+                <div 
+                  class="p-2.5 rounded-xl border flex flex-col justify-between"
+                  :class="isWhiteTheme ? 'bg-white border-black/10' : 'bg-black/60 border-white/10'"
+                >
+                  <span class="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Currently Staked</span>
+                  <div class="flex items-baseline gap-1 mt-1">
+                    <span class="text-base font-black text-emerald-400">{{ formatFullNumber(stakedAmount) }}</span>
+                    <span class="text-[10px] opacity-70">$DEF</span>
+                  </div>
+                  <span class="text-[9px] text-zinc-500">Max: 10,000 $DEF</span>
+                </div>
+
+                <!-- Live Accruing Yield -->
+                <div 
+                  class="p-2.5 rounded-xl border flex flex-col justify-between relative overflow-hidden"
+                  :class="isWhiteTheme ? 'bg-white border-emerald-500/30' : 'bg-black/60 border-emerald-500/30'"
+                >
+                  <span class="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold flex items-center justify-between">
+                    <span>Accrued Yield</span>
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                  </span>
+                  <div class="flex items-baseline gap-1 mt-1">
+                    <span class="text-base font-black text-amber-400 font-mono tracking-tight">
+                      +{{ liveAccruedYield.toFixed(4) }}
+                    </span>
+                    <span class="text-[10px] opacity-70">$DEF</span>
+                  </div>
+                  <span class="text-[9px] text-zinc-400">
+                    +{{ ((stakedAmount * 0.30) / 365.25).toFixed(2) }} $DEF / day
+                  </span>
+                </div>
+              </div>
+
+              <!-- Claim Yield & Unstake Action Buttons -->
+              <div class="flex items-center gap-2">
+                <button
+                  @click="handleClaimYieldClick"
+                  :disabled="liveAccruedYield < 1 || isStakingProcessing"
+                  class="flex-1 py-2 px-3 rounded-xl font-mono font-black text-[11px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  :class="liveAccruedYield >= 1
+                    ? (isWhiteTheme ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_15px_rgba(16,185,129,0.3)]')
+                    : (isWhiteTheme ? 'bg-zinc-200 text-zinc-500 border border-black/10' : 'bg-zinc-800 text-zinc-500 border border-white/10')"
+                >
+                  <Sparkles class="w-3.5 h-3.5" />
+                  <span>CLAIM YIELD (+{{ Math.floor(liveAccruedYield) }} $DEF)</span>
+                </button>
+
+                <button
+                  @click="handleUnstakeClick"
+                  :disabled="isStakingProcessing"
+                  class="py-2 px-3 rounded-xl font-mono font-bold text-[11px] uppercase tracking-wider border transition-all active:scale-95 disabled:opacity-50"
+                  :class="isWhiteTheme 
+                    ? 'bg-zinc-100 hover:bg-zinc-200 border-black/10 text-zinc-800' 
+                    : 'bg-zinc-900 hover:bg-zinc-800 border-white/15 text-zinc-300 hover:text-white'"
+                  title="Withdraw staked tokens back to available in-game balance"
+                >
+                  <Unlock class="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <!-- Top-up Stake if < 10,000 -->
+              <div v-if="stakedAmount < 10000" class="flex items-center justify-between gap-2 pt-1 border-t border-white/5 text-[10px] font-mono">
+                <span class="text-zinc-400">Increase Stake (up to 10k):</span>
+                <div class="flex items-center gap-1">
+                  <button
+                    v-if="(userTokens || 0) >= 2000 && (stakedAmount + 2000) <= 10000"
+                    @click="handleStakeClick(2000)"
+                    :disabled="isStakingProcessing"
+                    class="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 font-bold transition-all"
+                  >
+                    +2,000
+                  </button>
+                  <button
+                    v-if="(userTokens || 0) >= 1000 && (stakedAmount + Math.min(userTokens || 0, 10000 - stakedAmount)) >= 2000"
+                    @click="handleStakeClick(Math.min(userTokens || 0, 10000 - stakedAmount))"
+                    :disabled="isStakingProcessing"
+                    class="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 font-bold transition-all"
+                  >
+                    +MAX
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- STATE B: USER HAS NO ACTIVE STAKE (SHOW STAKE ONBOARDING & PRESETS) -->
+            <div v-else class="space-y-2.5">
+              <p class="text-[10px] font-mono leading-relaxed" :class="isWhiteTheme ? 'text-zinc-600' : 'text-zinc-400'">
+                Lock <strong class="text-amber-400 font-bold">2,000 – 10,000 $DEF</strong> to generate passive yield at <strong>30% APY</strong> and gain a permanent <strong class="text-emerald-400 font-bold">+1 Strike DMG</strong> perk.
+              </p>
+
+              <!-- In-Game Token Balance Notice -->
+              <div class="flex items-center justify-between text-[11px] font-mono px-1">
+                <span class="text-zinc-400">Available In-Game:</span>
+                <span class="font-bold font-mono" :class="(userTokens || 0) >= 2000 ? 'text-emerald-400' : 'text-amber-400'">
+                  {{ formatTokens(userTokens) }} $DEF
+                </span>
+              </div>
+
+              <!-- Preset Staking Buttons -->
+              <div class="grid grid-cols-3 gap-1.5">
+                <button
+                  @click="customStakeAmount = 2000; handleStakeClick(2000)"
+                  :disabled="(userTokens || 0) < 2000 || isStakingProcessing"
+                  class="py-2 px-1.5 rounded-xl border text-center transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  :class="isWhiteTheme 
+                    ? 'bg-zinc-100 hover:bg-emerald-50 border-black/10 text-zinc-900' 
+                    : 'bg-white/5 hover:bg-emerald-950/40 border-white/10 hover:border-emerald-500/40 text-zinc-200'"
+                >
+                  <div class="text-xs font-mono font-black text-amber-400">2,000</div>
+                  <div class="text-[8px] font-mono text-zinc-400 uppercase">MIN STAKE</div>
+                </button>
+
+                <button
+                  @click="customStakeAmount = 5000; handleStakeClick(5000)"
+                  :disabled="(userTokens || 0) < 5000 || isStakingProcessing"
+                  class="py-2 px-1.5 rounded-xl border text-center transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  :class="isWhiteTheme 
+                    ? 'bg-zinc-100 hover:bg-emerald-50 border-black/10 text-zinc-900' 
+                    : 'bg-white/5 hover:bg-emerald-950/40 border-white/10 hover:border-emerald-500/40 text-zinc-200'"
+                >
+                  <div class="text-xs font-mono font-black text-amber-400">5,000</div>
+                  <div class="text-[8px] font-mono text-zinc-400 uppercase">+125/mo</div>
+                </button>
+
+                <button
+                  @click="customStakeAmount = 10000; handleStakeClick(10000)"
+                  :disabled="(userTokens || 0) < 10000 || isStakingProcessing"
+                  class="py-2 px-1.5 rounded-xl border text-center transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  :class="isWhiteTheme 
+                    ? 'bg-zinc-100 hover:bg-emerald-50 border-black/10 text-zinc-900' 
+                    : 'bg-white/5 hover:bg-emerald-950/40 border-white/10 hover:border-emerald-500/40 text-zinc-200'"
+                >
+                  <div class="text-xs font-mono font-black text-amber-400">10,000</div>
+                  <div class="text-[8px] font-mono text-zinc-400 uppercase">MAX STAKE</div>
+                </button>
+              </div>
+
+              <!-- Fallback if not enough tokens -->
+              <div v-if="(userTokens || 0) < 2000" class="pt-1">
+                <a 
+                  href="https://app.uniswap.org/swap?chain=worldchain&inputCurrency=0x2cFc85d8E48F8EAB294be644d9E25C3030863003&outputCurrency=0xb767B50e80084330Fe2bF5F2C3CA5d6E0b73B6f6"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="w-full py-2 px-3 rounded-xl border flex items-center justify-center gap-1.5 text-[10px] font-mono font-bold text-pink-400 bg-pink-500/10 border-pink-500/30 hover:bg-pink-500/20 transition-all active:scale-95"
+                >
+                  <span>Need $DEF? Swap on Uniswap</span>
+                  <ArrowUpRight class="w-3 h-3 text-pink-400" />
+                </a>
+              </div>
+            </div>
           </div>
         </div>
 

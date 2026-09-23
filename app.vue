@@ -97,6 +97,12 @@ const dailyLimitReached = ref(false);
 const dailyClaimResetAt = ref(0);
 const dailyClaimedTokens = ref(0);
 
+// Quantum Staking Vault (30% APY)
+const stakedAmount = ref(0);
+const stakedAt = ref(0);
+const accumulatedStakeYield = ref(0);
+const isStakingProcessing = ref(false);
+
 // Game State (Starts pre-warmed at Level 1 AutoCorrect, seamlessly matching live state)
 const currentBossLevel = ref(1);
 const maxHp = ref(50);
@@ -204,6 +210,18 @@ const fetchRaidState = async (isView = false) => {
       if (res.player.nullifierHash && !verifiedNullifier.value) {
         verifiedNullifier.value = res.player.nullifierHash;
         setPersisted('defeat_ai_nullifier', res.player.nullifierHash);
+      }
+
+      if (res.player.stakedAmount !== undefined) {
+        stakedAmount.value = res.player.stakedAmount;
+        setPersisted('defeat_ai_staked_amount', String(res.player.stakedAmount));
+      }
+      if (res.player.stakedAt !== undefined) {
+        stakedAt.value = res.player.stakedAt;
+        setPersisted('defeat_ai_staked_at', String(res.player.stakedAt));
+      }
+      if (res.player.accumulatedStakeYield !== undefined) {
+        accumulatedStakeYield.value = res.player.accumulatedStakeYield;
       }
 
       // Handle server-enforced cooldown based on nullifier hash & player state
@@ -420,6 +438,109 @@ const handleToggleNotifications = async () => {
   }
 };
 
+// Quantum Staking Vault Action Handlers (30% APY)
+const handleStakeTokens = async (amount: number) => {
+  try {
+    isStakingProcessing.value = true;
+    showToast(`🛡️ Staking ${amount.toLocaleString()} $DEF into 30% APY Vault...`);
+    const res: any = await $fetch('/api/game', {
+      method: 'POST',
+      body: {
+        action: 'stake',
+        amount,
+        playerId: playerId.value,
+        walletAddress: walletAddress.value
+      }
+    });
+
+    if (res && res.success) {
+      stakedAmount.value = res.stakedAmount || 0;
+      stakedAt.value = res.stakedAt || Date.now();
+      accumulatedStakeYield.value = res.accumulatedStakeYield || 0;
+      if (res.remainingTokens !== undefined) {
+        userTokens.value = res.remainingTokens;
+        unclaimedTokens.value = res.remainingTokens;
+        setPersisted('defeat_ai_user_tokens', String(res.remainingTokens));
+      }
+      setPersisted('defeat_ai_staked_amount', String(stakedAmount.value));
+      setPersisted('defeat_ai_staked_at', String(stakedAt.value));
+      showToast(res.message || `🛡️ Successfully staked ${amount.toLocaleString()} $DEF!`);
+    }
+  } catch (err: any) {
+    const errData = err.data || {};
+    showToast(`Staking failed: ${errData.error || err.message}`);
+  } finally {
+    isStakingProcessing.value = false;
+  }
+};
+
+const handleUnstakeTokens = async (amount?: number) => {
+  try {
+    isStakingProcessing.value = true;
+    showToast('🔓 Withdrawing staked $DEF from Vault...');
+    const res: any = await $fetch('/api/game', {
+      method: 'POST',
+      body: {
+        action: 'unstake',
+        amount,
+        playerId: playerId.value,
+        walletAddress: walletAddress.value
+      }
+    });
+
+    if (res && res.success) {
+      stakedAmount.value = res.stakedAmount || 0;
+      stakedAt.value = res.stakedAt || 0;
+      accumulatedStakeYield.value = res.accumulatedStakeYield || 0;
+      if (res.remainingTokens !== undefined) {
+        userTokens.value = res.remainingTokens;
+        unclaimedTokens.value = res.remainingTokens;
+        setPersisted('defeat_ai_user_tokens', String(res.remainingTokens));
+      }
+      setPersisted('defeat_ai_staked_amount', String(stakedAmount.value));
+      setPersisted('defeat_ai_staked_at', String(stakedAt.value));
+      showToast(res.message || `🔓 Successfully unstaked!`);
+    }
+  } catch (err: any) {
+    const errData = err.data || {};
+    showToast(`Unstaking failed: ${errData.error || err.message}`);
+  } finally {
+    isStakingProcessing.value = false;
+  }
+};
+
+const handleClaimStakeYield = async () => {
+  try {
+    isStakingProcessing.value = true;
+    showToast('✨ Claiming $DEF staking yield...');
+    const res: any = await $fetch('/api/game', {
+      method: 'POST',
+      body: {
+        action: 'claim_stake_yield',
+        playerId: playerId.value,
+        walletAddress: walletAddress.value
+      }
+    });
+
+    if (res && res.success) {
+      stakedAmount.value = res.stakedAmount || 0;
+      stakedAt.value = res.stakedAt || 0;
+      accumulatedStakeYield.value = res.accumulatedStakeYield || 0;
+      if (res.remainingTokens !== undefined) {
+        userTokens.value = res.remainingTokens;
+        unclaimedTokens.value = res.remainingTokens;
+        setPersisted('defeat_ai_user_tokens', String(res.remainingTokens));
+      }
+      showToast(res.message || `🎉 Claimed +${res.claimedYield} $DEF staking rewards!`);
+    }
+  } catch (err: any) {
+    const errData = err.data || {};
+    showToast(`Claim failed: ${errData.error || err.message}`);
+  } finally {
+    isStakingProcessing.value = false;
+  }
+};
+
 // Load saved local state & initialize MiniKit + Global Raid Sync
 onMounted(() => {
   if (typeof window !== 'undefined') {
@@ -486,6 +607,12 @@ onMounted(() => {
 
     const savedNotifs = getPersisted('defeat_ai_notifications_enabled');
     if (savedNotifs === 'true') isNotificationsEnabled.value = true;
+
+    const savedStaked = getPersisted('defeat_ai_staked_amount');
+    if (savedStaked) stakedAmount.value = parseInt(savedStaked, 10);
+
+    const savedStakedAt = getPersisted('defeat_ai_staked_at');
+    if (savedStakedAt) stakedAt.value = parseInt(savedStakedAt, 10);
 
     if (isInsideWorldApp.value && MiniKit.isInstalled()) {
       try {
@@ -1095,6 +1222,9 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
         :daily-limit-reached="dailyLimitReached"
         :daily-claim-reset-at="dailyClaimResetAt"
         :daily-claimed-tokens="dailyClaimedTokens"
+        :staked-amount="stakedAmount"
+        :staked-at="stakedAt"
+        :accumulated-stake-yield="accumulatedStakeYield"
         @hit="handleHit"
         @open-shop="handleOpenShop"
         @toggle-notifications="handleToggleNotifications"
@@ -1125,12 +1255,19 @@ const handleClaimTokens = async (claimData: { amount: number; address: string })
       :has-bow="hasBow"
       :is-white-theme="isWhiteTheme"
       :is-notifications-enabled="isNotificationsEnabled"
+      :staked-amount="stakedAmount"
+      :staked-at="stakedAt"
+      :accumulated-stake-yield="accumulatedStakeYield"
+      :is-staking-processing="isStakingProcessing"
       @close="isShopOpen = false"
       @buy-item="handleBuyItem"
       @connect-wallet="handleConnectWallet"
       @disconnect-wallet="handleDisconnectWallet"
       @refresh-balance="handleRefreshShop"
       @toggle-notifications="handleToggleNotifications"
+      @stake="handleStakeTokens"
+      @unstake="handleUnstakeTokens"
+      @claim-stake-yield="handleClaimStakeYield"
     />
 
     <!-- Ultra-Simplified Reward Claim Modal: ONLY the Sum of Claimed Tokens -->

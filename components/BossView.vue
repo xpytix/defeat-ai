@@ -45,6 +45,9 @@ const props = defineProps<{
   dailyLimitReached?: boolean;
   dailyClaimResetAt?: number;
   dailyClaimedTokens?: number;
+  stakedAmount?: number;
+  stakedAt?: number;
+  accumulatedStakeYield?: number;
 }>();
 
 const emit = defineEmits<{
@@ -83,6 +86,10 @@ const activeAttackerCount = computed(() => {
   if (props.totalStrikes !== undefined) return props.totalStrikes;
   return 0;
 });
+
+const isStaker = computed(() => (props.stakedAmount || 0) >= 2000);
+const dailyStrikeDmg = computed(() => (props.hasSword ? 2 : 1) + (isStaker.value ? 1 : 0));
+const powerStrikeDmg = computed(() => (props.hasSword ? 4 : 2) + (isStaker.value ? 1 : 0));
 
 // Layered Volumetric Particles: Foreground & Background
 const foregroundParticles = ref<Particle[]>([]);
@@ -711,6 +718,28 @@ const formatTokens = (val: number) => {
               />
             </button>
 
+            <!-- STAKING VAULT ICON -->
+            <button
+              @click.stop="emit('openShop')"
+              class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl backdrop-blur-md border flex items-center justify-center transition-all active:scale-90 shadow-md relative group cursor-pointer"
+              :class="isStaker 
+                ? (isWhiteTheme 
+                    ? 'bg-black text-amber-400 border-black ring-1 ring-amber-500/40 shadow-sm' 
+                    : 'bg-amber-950/60 text-amber-400 border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.35)] ring-1 ring-amber-500/50') 
+                : (isWhiteTheme 
+                    ? 'bg-white/80 text-zinc-400 border-black/10 hover:border-black/30 hover:text-zinc-700' 
+                    : 'bg-black/60 text-zinc-500 border-white/10 hover:border-white/20 hover:text-zinc-300')"
+              :title="isStaker ? `Quantum Staking Vault (${(stakedAmount || 0).toLocaleString()} $DEF · +1 DMG Active) - Click to View` : 'Quantum Staking Vault (30% APY) - Click to Open'"
+            >
+              <Lock v-if="isStaker" class="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-400 transition-transform group-hover:scale-110" />
+              <Coins v-else class="w-4 h-4 sm:w-4.5 sm:h-4.5 transition-transform group-hover:scale-110" />
+              <!-- Small Gold Indicator Dot -->
+              <span 
+                v-if="isStaker" 
+                class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 border-2 border-black shadow-sm animate-pulse"
+              />
+            </button>
+
           </div>
 
         </div>
@@ -890,7 +919,7 @@ const formatTokens = (val: number) => {
           : 'bg-gradient-to-r from-white via-zinc-100 to-zinc-200 text-black hover:bg-white shadow-[0_0_20px_rgba(255,255,255,0.2)] border border-white'"
       >
         <span v-if="isVerifying" class="animate-pulse">👁️ VERIFYING WORLD ID...</span>
-        <span v-else>💥 {{ hasSword ? 'PLASMA STRIKE (-2 HP)' : 'STRIKE & CLAIM (-1 HP)' }} (+{{ hasSword ? 40 : 20 }} $DEF)</span>
+        <span v-else>💥 {{ hasSword ? 'PLASMA STRIKE' : 'STRIKE & CLAIM' }} (-{{ dailyStrikeDmg }} HP) (+{{ hasSword ? 40 : 20 }} $DEF)</span>
       </button>
 
       <!-- COUNTDOWN TIMER IF ALREADY CLAIMED TODAY -->
@@ -941,7 +970,7 @@ const formatTokens = (val: number) => {
         <div v-else class="flex items-center gap-2">
           <Zap class="w-3.5 h-3.5 text-cyan-500 fill-cyan-500" :class="{ 'animate-spin': isPowerStriking }" />
           <span class="text-[11px] sm:text-xs font-mono tracking-wider font-extrabold uppercase">
-            {{ isPowerStriking ? 'STRIKING BOSS...' : (hasSword ? 'Plasma Power Strike (-4 HP / +80 $DEF)' : 'Power Strike (-2 HP / +40 $DEF)') }}
+            {{ isPowerStriking ? 'STRIKING BOSS...' : (hasSword ? `Plasma Power Strike (-${powerStrikeDmg} HP / +80 $DEF)` : `Power Strike (-${powerStrikeDmg} HP / +40 $DEF)`) }}
           </span>
         </div>
         <span 

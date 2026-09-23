@@ -15,6 +15,25 @@ import { distributeDefRewardOnChain, generateClaimVoucher, getOnChainClaimedToda
 import { verifyWorldAppPayment } from '../utils/payment';
 import { sendWorldAppNotification } from '../utils/notifications';
 
+const STAKING_APY = 0.30; // 30% APY
+const MS_IN_YEAR = 365.25 * 24 * 3600 * 1000;
+
+export function calculateAccruedStakeYield(player: any): number {
+  if (!player.stakedAmount || player.stakedAmount <= 0 || !player.stakedAt) {
+    return player.accumulatedStakeYield || 0;
+  }
+  const now = Date.now();
+  const elapsedMs = Math.max(0, now - player.stakedAt);
+  const newlyAccrued = (player.stakedAmount * STAKING_APY * elapsedMs) / MS_IN_YEAR;
+  return (player.accumulatedStakeYield || 0) + newlyAccrued;
+}
+
+export function updatePlayerStakeYield(player: any) {
+  const totalAccrued = calculateAccruedStakeYield(player);
+  player.accumulatedStakeYield = totalAccrued;
+  player.stakedAt = player.stakedAmount > 0 ? Date.now() : 0;
+}
+
 function getNextUtcMidnight(): number {
   const d = new Date();
   d.setUTCHours(24, 0, 0, 0);
@@ -68,6 +87,8 @@ export default defineEventHandler(async (event) => {
     const dailyLimitReached = (dailyClaimedTokens >= MAX_DAILY_CLAIM || dailyClaimRemaining < minTokensPerStrike) && now < (player.dailyClaimResetAt || 0);
     const dailyClaimResetAt = player.dailyClaimResetAt || getNextUtcMidnight();
 
+    const accruedYield = calculateAccruedStakeYield(player);
+
     const effectiveNullifier = nullifierHash || player.nullifierHash || (walletAddress && walletAddress.startsWith('0x') ? walletAddress : undefined) || (playerId && playerId.startsWith('0x') ? playerId : undefined);
     let humanCooldownRemainingMs = 0;
     if (effectiveNullifier) {
@@ -88,13 +109,19 @@ export default defineEventHandler(async (event) => {
         dailyClaimedTokens,
         dailyClaimResetAt,
         dailyLimitReached,
-        dailyClaimRemaining
+        dailyClaimRemaining,
+        stakedAmount: player.stakedAmount || 0,
+        stakedAt: player.stakedAt || 0,
+        accumulatedStakeYield: accruedYield
       },
       dailyLimitReached,
       dailyClaimResetAt,
       dailyClaimedTokens,
       dailyClaimRemaining,
       humanCooldownRemainingMs,
+      stakedAmount: player.stakedAmount || 0,
+      stakedAt: player.stakedAt || 0,
+      accumulatedStakeYield: accruedYield,
       bossMetadata: BOSS_METADATA
     };
   }
@@ -294,6 +321,13 @@ export default defineEventHandler(async (event) => {
         damage = player.hasSword ? 4 : 2;
         tokensEarned = player.hasSword ? 80 : 40;
         weapon = player.hasSword ? 'Plasma Power Strike (4x)' : 'Power Strike (2 WLD)';
+      }
+
+      // Cyber Staking Perk (+1 DMG if staked >= 2000 $DEF)
+      const isStaker = Boolean(player.stakedAmount && player.stakedAmount >= 2000);
+      if (isStaker) {
+        damage += 1;
+        weapon += ' [+1 Staker DMG]';
       }
 
       // Deduct Boss HP globally
@@ -579,6 +613,152 @@ export default defineEventHandler(async (event) => {
         dailyClaimedTokens: player.dailyClaimedTokens,
         dailyClaimRemaining: Math.max(0, MAX_DAILY_CLAIM - player.dailyClaimedTokens),
         message: `🎉 Generated on-chain claim voucher for ${claimAmount} $DEF (Daily Limit: 500 $DEF)!`
+      };
+    }
+
+    // === ACTION: STAKE $DEF (30% APY VAULT) ===
+    if (action === 'stake') {
+      const stakeAmount = Math.floor(Number(body?.amount));
+      if (isNaN(stakeAmount) || stakeAmount <= 0) {
+        setResponseStatus(event, 400);
+        return { success: false, error: 'Invalid stake amount' };
+      }
+
+      const currentStaked = player.stakedAmount || 0;
+      const newTotalStaked = currentStaked + stakeAmount;
+
+      if (newTotalStaked < 2000) {
+        setResponseStatus(event, 400);
+        return { success: false, error: 'Minimum total stake is 2,000 $DEF' };
+      }
+
+      if (newTotalStaked > 10000) {
+        setResponseStatus(event, 400);
+        return { 
+          success: false, 
+          error: `Maximum stake limit is 10,000 $DEF (you currently have ${currentStaked.toLocaleString()} $DEF staked)` 
+        };
+      }
+
+      if (player.tokens < stakeAmount) {
+        setResponseStatus(event, 400);
+        return { 
+          success: false, 
+          error: `Insufficient $DEF balance. You have ${player.tokens.toLocaleString()} $DEF available.` 
+        };
+      }
+
+      // 1. Accrue pending yield before updating stake
+      updatePlayerStakeYield(player);
+
+      // 2. Transfer tokens to vault
+      player.tokens = Math.max(0, player.tokens - stakeAmount);
+      player.stakedAmount = newTotalStaked;
+      player.stakedAt = Date.now();
+
+      await savePlayerProfile(player);
+
+      const liveYield = calculateAccruedStakeYield(player);
+
+      return {
+        success: true,
+        stakedAmount: player.stakedAmount,
+        stakedAt: player.stakedAt,
+        accumulatedStakeYield: liveYield,
+        remainingTokens: player.tokens,
+        player: {
+          ...player,
+          accumulatedStakeYield: liveYield
+        },
+        message: `🛡️ Successfully staked ${stakeAmount.toLocaleString()} $DEF into 30% APY Vault!`
+      };
+    }
+
+    // === ACTION: UNSTAKE $DEF ===
+    if (action === 'unstake') {
+      const currentStaked = player.stakedAmount || 0;
+      if (currentStaked <= 0) {
+        setResponseStatus(event, 400);
+        return { success: false, error: 'No $DEF currently staked in vault' };
+      }
+
+      const requested = body?.amount ? Math.floor(Number(body.amount)) : currentStaked;
+      const unstakeAmount = Math.min(requested, currentStaked);
+
+      if (unstakeAmount <= 0) {
+        setResponseStatus(event, 400);
+        return { success: false, error: 'Invalid unstake amount' };
+      }
+
+      const remainingStaked = currentStaked - unstakeAmount;
+      if (remainingStaked > 0 && remainingStaked < 2000) {
+        setResponseStatus(event, 400);
+        return { 
+          success: false, 
+          error: 'Remaining stake cannot be less than 2,000 $DEF. Either unstake all or leave at least 2,000 $DEF.' 
+        };
+      }
+
+      // 1. Accrue pending yield before withdrawing
+      updatePlayerStakeYield(player);
+
+      // 2. Return staked tokens to player balance
+      player.stakedAmount = remainingStaked;
+      player.tokens += unstakeAmount;
+      if (remainingStaked === 0) {
+        player.stakedAt = 0;
+      } else {
+        player.stakedAt = Date.now();
+      }
+
+      await savePlayerProfile(player);
+
+      const liveYield = calculateAccruedStakeYield(player);
+
+      return {
+        success: true,
+        unstakedAmount: unstakeAmount,
+        stakedAmount: player.stakedAmount,
+        stakedAt: player.stakedAt,
+        accumulatedStakeYield: liveYield,
+        remainingTokens: player.tokens,
+        player: {
+          ...player,
+          accumulatedStakeYield: liveYield
+        },
+        message: `🔓 Successfully unstaked ${unstakeAmount.toLocaleString()} $DEF from Vault!`
+      };
+    }
+
+    // === ACTION: CLAIM STAKING YIELD ===
+    if (action === 'claim_stake_yield') {
+      updatePlayerStakeYield(player);
+      const claimable = Math.floor(player.accumulatedStakeYield || 0);
+
+      if (claimable < 1) {
+        setResponseStatus(event, 400);
+        return { success: false, error: 'Minimum claimable staking yield is 1 $DEF' };
+      }
+
+      player.accumulatedStakeYield = Math.max(0, (player.accumulatedStakeYield || 0) - claimable);
+      player.tokens += claimable;
+
+      await savePlayerProfile(player);
+
+      const liveYield = calculateAccruedStakeYield(player);
+
+      return {
+        success: true,
+        claimedYield: claimable,
+        stakedAmount: player.stakedAmount || 0,
+        stakedAt: player.stakedAt || 0,
+        accumulatedStakeYield: liveYield,
+        remainingTokens: player.tokens,
+        player: {
+          ...player,
+          accumulatedStakeYield: liveYield
+        },
+        message: `🎉 Claimed +${claimable.toLocaleString()} $DEF staking rewards!`
       };
     }
 

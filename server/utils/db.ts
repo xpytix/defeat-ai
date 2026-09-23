@@ -47,6 +47,9 @@ export interface PlayerProfile {
   totalStrikes: number;
   dailyClaimedTokens?: number;
   dailyClaimResetAt?: number;
+  stakedAmount?: number;         // Staked $DEF (min 2000, max 10000)
+  stakedAt?: number;             // Timestamp of last stake / reward calculation
+  accumulatedStakeYield?: number;// Accrued unclaimed staking rewards
 }
 
 export const BOSS_METADATA = [
