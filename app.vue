@@ -778,7 +778,7 @@ const handleHit = async (type: 'free' | 'power') => {
         }
 
         const dmg = res.damage || (hasSword.value ? 4 : 2);
-        const tokens = res.tokensEarned || (hasSword.value ? 40 : 20);
+        const tokens = res.tokensEarned || (hasSword.value ? 80 : 40);
         bossViewRef.value?.playAttackAnimation('power', dmg, tokens);
 
         if (res.onChainPayout?.success) {

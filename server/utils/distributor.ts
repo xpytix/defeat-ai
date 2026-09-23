@@ -50,13 +50,16 @@ export function getSigningKey(): `0x${string}` {
 export async function generateClaimVoucher(
   recipientAddress: string,
   tokenAmount: number = 20,
-  nonce: number = 1,
+  nonce?: number | bigint | string,
   expiryMinutes: number = 60
 ): Promise<{ success: boolean; voucher?: ClaimVoucher; error?: string }> {
   if (!recipientAddress || !recipientAddress.startsWith('0x') || recipientAddress.length !== 42) {
     return { success: false, error: 'Invalid recipient wallet address format.' };
   }
 
+  const effectiveNonce = nonce !== undefined && nonce !== null
+    ? BigInt(nonce) 
+    : (BigInt(Date.now()) * BigInt(1000) + BigInt(Math.floor(Math.random() * 1000)));
   const formattedPk = getSigningKey();
 
   try {
@@ -72,12 +75,12 @@ export async function generateClaimVoucher(
       message: {
         recipient: recipientAddress as `0x${string}`,
         amount: amountWei,
-        nonce: BigInt(nonce),
+        nonce: effectiveNonce,
         expiry: BigInt(expiry)
       }
     });
 
-    console.log(`[EIP712 Voucher] Generated voucher for ${recipientAddress}: ${tokenAmount} $DEF, nonce: ${nonce}`);
+    console.log(`[EIP712 Voucher] Generated voucher for ${recipientAddress}: ${tokenAmount} $DEF, nonce: ${effectiveNonce}`);
 
     return {
       success: true,
@@ -85,7 +88,7 @@ export async function generateClaimVoucher(
         recipient: recipientAddress as `0x${string}`,
         amount: amountWei.toString(),
         tokenAmount,
-        nonce,
+        nonce: effectiveNonce.toString(),
         expiry,
         signature
       }
@@ -171,7 +174,7 @@ export async function getOnChainClaimedToday(walletAddress: string): Promise<num
       functionName: 'playerClaimedInDay',
       args: [walletAddress as `0x${string}`, currentDay]
     });
-    return Number(claimedWei / 10n**18n);
+    return Number(claimedWei / (BigInt(10) ** BigInt(18)));
   } catch (err: any) {
     console.warn('[OnChain] Error reading playerClaimedInDay:', err.message);
     return 0;

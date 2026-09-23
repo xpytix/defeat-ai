@@ -63,7 +63,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const dailyClaimedTokens = Math.max(player.dailyClaimedTokens || 0, onChainClaimed);
-    const minTokensPerStrike = player.hasSword ? 40 : 20;
+    const minTokensPerStrike = player.hasSword ? 80 : 40;
     const dailyClaimRemaining = Math.max(0, MAX_DAILY_CLAIM - dailyClaimedTokens);
     const dailyLimitReached = (dailyClaimedTokens >= MAX_DAILY_CLAIM || dailyClaimRemaining < minTokensPerStrike) && now < (player.dailyClaimResetAt || 0);
     const dailyClaimResetAt = player.dailyClaimResetAt || getNextUtcMidnight();
@@ -184,7 +184,7 @@ export default defineEventHandler(async (event) => {
       }
 
       const dailyClaimedTokens = Math.max(player.dailyClaimedTokens || 0, onChainClaimed);
-      const minTokensPerStrike = player.hasSword ? 40 : 20;
+      const minTokensPerStrike = player.hasSword ? 80 : 40;
       const dailyClaimRemaining = Math.max(0, MAX_DAILY_CLAIM - dailyClaimedTokens);
       const dailyLimitReached = (dailyClaimedTokens >= MAX_DAILY_CLAIM || dailyClaimRemaining < minTokensPerStrike) && now < (player.dailyClaimResetAt || 0);
       const dailyClaimResetAt = player.dailyClaimResetAt || getNextUtcMidnight();
@@ -292,7 +292,7 @@ export default defineEventHandler(async (event) => {
         });
 
         damage = player.hasSword ? 4 : 2;
-        tokensEarned = player.hasSword ? 40 : 20;
+        tokensEarned = player.hasSword ? 80 : 40;
         weapon = player.hasSword ? 'Plasma Power Strike (4x)' : 'Power Strike (2 WLD)';
       }
 
@@ -407,8 +407,7 @@ export default defineEventHandler(async (event) => {
         } else {
           console.warn(`[Strike Payout] Direct payout not executed (${payout.error}), falling back to EIP-712 voucher.`);
           // 2. Fallback: generate cryptographic voucher for claim
-          (player as any).claimNonce = ((player as any).claimNonce || 0) + 1;
-          const vResult = await generateClaimVoucher(targetAddress, tokensEarned, (player as any).claimNonce);
+          const vResult = await generateClaimVoucher(targetAddress, tokensEarned);
           if (vResult.success) {
             voucher = vResult.voucher;
           }

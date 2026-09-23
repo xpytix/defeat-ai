@@ -890,7 +890,7 @@ const formatTokens = (val: number) => {
           : 'bg-gradient-to-r from-white via-zinc-100 to-zinc-200 text-black hover:bg-white shadow-[0_0_20px_rgba(255,255,255,0.2)] border border-white'"
       >
         <span v-if="isVerifying" class="animate-pulse">👁️ VERIFYING WORLD ID...</span>
-        <span v-else>💥 {{ hasSword ? 'PLASMA STRIKE (-2 HP)' : 'STRIKE & CLAIM' }} (+{{ hasSword ? 40 : 20 }} $DEF)</span>
+        <span v-else>💥 {{ hasSword ? 'PLASMA STRIKE (-2 HP)' : 'STRIKE & CLAIM (-1 HP)' }} (+{{ hasSword ? 40 : 20 }} $DEF)</span>
       </button>
 
       <!-- COUNTDOWN TIMER IF ALREADY CLAIMED TODAY -->
@@ -916,7 +916,7 @@ const formatTokens = (val: number) => {
         </span>
       </div>
 
-      <!-- POWER STRIKE BUTTON (2 WLD = ATTACK + 20 TOKENS, LOCKED IF DAILY CLAIM LIMIT REACHED) -->
+      <!-- POWER STRIKE BUTTON (2 WLD = ATTACK + 40 TOKENS, LOCKED IF DAILY CLAIM LIMIT REACHED) -->
       <button 
         @click="triggerHit('power', $event)"
         :disabled="isPowerStriking || dailyLimitReached"
@@ -941,7 +941,7 @@ const formatTokens = (val: number) => {
         <div v-else class="flex items-center gap-2">
           <Zap class="w-3.5 h-3.5 text-cyan-500 fill-cyan-500" :class="{ 'animate-spin': isPowerStriking }" />
           <span class="text-[11px] sm:text-xs font-mono tracking-wider font-extrabold uppercase">
-            {{ isPowerStriking ? 'STRIKING BOSS...' : (hasSword ? 'Plasma Power Strike (+40 $DEF)' : 'Power Strike (+20 $DEF)') }}
+            {{ isPowerStriking ? 'STRIKING BOSS...' : (hasSword ? 'Plasma Power Strike (-4 HP / +80 $DEF)' : 'Power Strike (-2 HP / +40 $DEF)') }}
           </span>
         </div>
         <span 
