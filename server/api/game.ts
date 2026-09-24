@@ -287,8 +287,10 @@ export default defineEventHandler(async (event) => {
           };
         }
 
-        // Record human strike cooldown in Netlify Blobs / storage
-        await recordHumanStrike(trackingKey, now);
+        damage = (player.hasSword || body?.hasSword) ? 2 : 1;
+        tokensEarned = (player.hasSword || body?.hasSword) ? 40 : 20;
+        weapon = (player.hasSword || body?.hasSword) ? 'Plasma Blade (2x)' : 'Verified Human Strike';
+
         if (verifiedNullifierHash && !player.nullifierHash) {
           player.nullifierHash = verifiedNullifierHash;
         }
@@ -296,10 +298,117 @@ export default defineEventHandler(async (event) => {
           player.address = targetAddress;
         }
 
-        player.lastFreeHitTime = now;
-        damage = player.hasSword ? 2 : 1;
-        tokensEarned = player.hasSword ? 40 : 20;
-        weapon = player.hasSword ? 'Plasma Blade (2x)' : 'Verified Human Strike';
+        // Check if direct on-chain transfer succeeds immediately
+        let directPayout: any = null;
+        if (targetAddress && targetAddress.startsWith('0x') && targetAddress.length === 42) {
+          directPayout = await distributeDefRewardOnChain(targetAddress, tokensEarned);
+        }
+
+        if (directPayout && directPayout.success) {
+          // Direct payout succeeded on-chain: finalize strike immediately
+          await recordHumanStrike(trackingKey, now);
+          player.lastFreeHitTime = now;
+          (player as any).claimedTokens = ((player as any).claimedTokens || 0) + tokensEarned;
+
+          raid.currentHp = Math.max(0, raid.currentHp - damage);
+          raid.totalStrikes += 1;
+
+          if (raid.currentHp > 0 && raid.currentHp <= Math.floor(raid.maxHp * 0.5) && raid.notified50PercentLevel !== raid.currentLevel) {
+            raid.notified50PercentLevel = raid.currentLevel;
+            sendWorldAppNotification('boss_50_pct', undefined, { 
+              bossName: raid.bossName,
+              currentHp: raid.currentHp,
+              maxHp: raid.maxHp
+            }).catch((err) => console.warn('[Notification] 50% HP alert error:', err));
+          }
+
+          let bossDefeated = false;
+          if (raid.currentHp <= 0) {
+            bossDefeated = true;
+            if (!raid.defeatedBosses.includes(raid.currentLevel)) {
+              raid.defeatedBosses.push(raid.currentLevel);
+            }
+            if (raid.currentLevel < 8) {
+              raid.currentLevel += 1;
+              const nextBoss = BOSS_METADATA[raid.currentLevel - 1];
+              raid.maxHp = nextBoss.maxHp;
+              raid.currentHp = nextBoss.maxHp;
+              raid.bossName = nextBoss.name;
+              raid.notified50PercentLevel = undefined;
+              sendWorldAppNotification('new_boss', undefined, { bossName: nextBoss.name }).catch(() => {});
+            }
+          }
+
+          let displayName = playerName || (verifiedNullifierHash ? `Human #${verifiedNullifierHash.slice(2, 6)}` : 'Verified Human');
+          raid.recentStrikes.unshift({
+            id: `strike-${now}-${Math.random().toString(36).substring(2, 6)}`,
+            playerId,
+            playerName: displayName,
+            nullifierHash: verifiedNullifierHash,
+            type: 'free',
+            damage,
+            tokensEarned,
+            weapon,
+            timestamp: now
+          });
+          if (raid.recentStrikes.length > 20) raid.recentStrikes.pop();
+
+          const contributorKey = verifiedNullifierHash ? `human_${verifiedNullifierHash.slice(0, 10)}` : displayName;
+          const currentStats = raid.contributors[contributorKey] || { address: displayName, hits: 0, damage: 0, rewardEarned: 0, lastHit: now };
+          currentStats.hits += 1;
+          currentStats.damage += damage;
+          currentStats.rewardEarned += tokensEarned;
+          currentStats.lastHit = now;
+          raid.contributors[contributorKey] = currentStats;
+
+          player.tokens += tokensEarned;
+          player.totalDamageDealt += damage;
+          player.totalStrikes += 1;
+          player.dailyClaimedTokens = (dailyClaimedTokens || 0) + tokensEarned;
+
+          await Promise.all([saveRaidState(raid), savePlayerProfile(player)]);
+
+          return {
+            success: true,
+            directTransfer: true,
+            damage,
+            tokensEarned,
+            bossDefeated,
+            nullifierHash: verifiedNullifierHash,
+            nextFreeHitTime: now + cooldownMs,
+            onChainPayout: directPayout,
+            raid,
+            player
+          };
+        } else {
+          // Direct transfer not executed -> generate voucher without consuming cooldown or damaging boss yet
+          const recipient = targetAddress || player.address;
+          if (!recipient || !recipient.startsWith('0x') || recipient.length !== 42) {
+            setResponseStatus(event, 400);
+            return { success: false, error: 'Valid World Chain wallet address required for daily claim voucher.' };
+          }
+
+          const vResult = await generateClaimVoucher(recipient, tokensEarned);
+          if (!vResult.success || !vResult.voucher) {
+            setResponseStatus(event, 500);
+            return { success: false, error: vResult.error || 'Failed to generate claim voucher.' };
+          }
+
+          return {
+            success: true,
+            pendingClaim: true,
+            voucher: {
+              ...vResult.voucher,
+              isFreeDailyStrike: true,
+              damage,
+              tokensEarned
+            },
+            damage,
+            tokensEarned,
+            raid,
+            player
+          };
+        }
       } else {
         // === POWER STRIKE (2 WLD) - STRICT VERIFICATION & REPLAY PROTECTION ===
         const paymentCheck = await verifyWorldAppPayment(paymentPayload, 2, 'power_strike');
@@ -318,25 +427,175 @@ export default defineEventHandler(async (event) => {
           walletAddress: targetAddress
         });
 
-        damage = player.hasSword ? 4 : 2;
-        tokensEarned = player.hasSword ? 80 : 40;
-        weapon = player.hasSword ? 'Plasma Power Strike (4x)' : 'Power Strike (2 WLD)';
+        damage = (player.hasSword || body?.hasSword) ? 4 : 2;
+        tokensEarned = (player.hasSword || body?.hasSword) ? 80 : 40;
+        weapon = (player.hasSword || body?.hasSword) ? 'Plasma Power Strike (4x)' : 'Power Strike (2 WLD)';
+
+        // Deduct Boss HP globally for Power Strike
+        raid.currentHp = Math.max(0, raid.currentHp - damage);
+        raid.totalStrikes += 1;
+
+        // 1. Notification: Boss down to 50% HP Alert
+        if (raid.currentHp > 0 && raid.currentHp <= Math.floor(raid.maxHp * 0.5) && raid.notified50PercentLevel !== raid.currentLevel) {
+          raid.notified50PercentLevel = raid.currentLevel;
+          sendWorldAppNotification('boss_50_pct', undefined, { 
+            bossName: raid.bossName,
+            currentHp: raid.currentHp,
+            maxHp: raid.maxHp
+          }).catch((err) => console.warn('[Notification] 50% HP alert error:', err));
+        }
+
+        // Boss Defeated progression
+        let bossDefeated = false;
+        if (raid.currentHp <= 0) {
+          bossDefeated = true;
+          if (!raid.defeatedBosses.includes(raid.currentLevel)) {
+            raid.defeatedBosses.push(raid.currentLevel);
+          }
+
+          if (raid.currentLevel < 8) {
+            raid.currentLevel += 1;
+            const nextBoss = BOSS_METADATA[raid.currentLevel - 1];
+            raid.maxHp = nextBoss.maxHp;
+            raid.currentHp = nextBoss.maxHp;
+            raid.bossName = nextBoss.name;
+            raid.notified50PercentLevel = undefined;
+            sendWorldAppNotification('new_boss', undefined, { bossName: nextBoss.name }).catch(() => {});
+          }
+        }
+
+        let displayName = playerName;
+        if (!displayName) {
+          if (verifiedNullifierHash) {
+            displayName = `Human #${verifiedNullifierHash.slice(2, 6)}`;
+          } else if (playerId.startsWith('0x')) {
+            displayName = `${playerId.slice(0, 6)}...${playerId.slice(-4)}`;
+          } else {
+            displayName = 'Verified Human';
+          }
+        }
+
+        raid.recentStrikes.unshift({
+          id: `strike-${now}-${Math.random().toString(36).substring(2, 6)}`,
+          playerId,
+          playerName: displayName,
+          nullifierHash: verifiedNullifierHash,
+          type,
+          damage,
+          tokensEarned,
+          weapon,
+          timestamp: now
+        });
+        if (raid.recentStrikes.length > 20) {
+          raid.recentStrikes.pop();
+        }
+
+        const contributorKey = verifiedNullifierHash ? `human_${verifiedNullifierHash.slice(0, 10)}` : displayName;
+        const currentStats = raid.contributors[contributorKey] || {
+          address: displayName,
+          hits: 0,
+          damage: 0,
+          rewardEarned: 0,
+          lastHit: now
+        };
+        currentStats.hits += 1;
+        currentStats.damage += damage;
+        currentStats.rewardEarned += tokensEarned;
+        currentStats.lastHit = now;
+        raid.contributors[contributorKey] = currentStats;
+
+        player.tokens += tokensEarned;
+        player.totalDamageDealt += damage;
+        player.totalStrikes += 1;
+        player.dailyClaimedTokens = (dailyClaimedTokens || 0) + tokensEarned;
+        const finalDailyClaimed = player.dailyClaimedTokens;
+        const finalDailyRemaining = Math.max(0, MAX_DAILY_CLAIM - finalDailyClaimed);
+        const finalLimitReached = (finalDailyClaimed >= MAX_DAILY_CLAIM || finalDailyRemaining < minTokensPerStrike);
+
+        await Promise.all([
+          saveRaidState(raid),
+          savePlayerProfile(player)
+        ]);
+
+        return {
+          success: true,
+          damage,
+          tokensEarned,
+          bossDefeated,
+          nullifierHash: verifiedNullifierHash,
+          raid,
+          player: {
+            ...player,
+            dailyClaimedTokens: finalDailyClaimed,
+            dailyClaimResetAt,
+            dailyLimitReached: finalLimitReached,
+            dailyClaimRemaining: finalDailyRemaining
+          },
+          dailyLimitReached: finalLimitReached,
+          dailyClaimResetAt,
+          dailyClaimedTokens: finalDailyClaimed,
+          dailyClaimRemaining: finalDailyRemaining
+        };
       }
+    }
+
+    if (action === 'confirm_free_strike') {
+      const now = Date.now();
+      const MAX_DAILY_CLAIM = 500;
+
+      if (!player.dailyClaimResetAt || now >= player.dailyClaimResetAt) {
+        player.dailyClaimedTokens = 0;
+        player.dailyClaimResetAt = getNextUtcMidnight();
+      }
+
+      const targetAddr = targetAddress || player.address;
+      let onChainClaimed = 0;
+      if (targetAddr) {
+        onChainClaimed = await getOnChainClaimedToday(targetAddr);
+      }
+
+      const dailyClaimedTokens = Math.max(player.dailyClaimedTokens || 0, onChainClaimed);
+      const minTokensPerStrike = player.hasSword ? 80 : 40;
+      const dailyClaimRemaining = Math.max(0, MAX_DAILY_CLAIM - dailyClaimedTokens);
+      const dailyClaimResetAt = player.dailyClaimResetAt || getNextUtcMidnight();
+
+      const cooldownHours = (player.hasBow || body?.hasBow) ? 12 : 24;
+      const cooldownMs = cooldownHours * 60 * 60 * 1000;
+
+      const trackingKey = nullifierHash || player.nullifierHash || targetAddress || player.id;
+      const lastStrike = await getHumanLastStrike(trackingKey);
+      if (lastStrike > 0 && (now - lastStrike < cooldownMs)) {
+        const nextTime = lastStrike + cooldownMs;
+        setResponseStatus(event, 429);
+        return {
+          success: false,
+          error: `Cooldown active. Next strike available in ${Math.ceil((nextTime - now) / (1000 * 60))} minutes.`,
+          nextFreeHitTime: nextTime,
+          raid,
+          player
+        };
+      }
+
+      // Record cooldown now that claim is confirmed!
+      await recordHumanStrike(trackingKey, now);
+      player.lastFreeHitTime = now;
+
+      const damage = (player.hasSword || body?.hasSword) ? 2 : 1;
+      const tokensEarned = (player.hasSword || body?.hasSword) ? 40 : 20;
+      const weapon = (player.hasSword || body?.hasSword) ? 'Plasma Blade (2x)' : 'Verified Human Strike';
 
       // Deduct Boss HP globally
       raid.currentHp = Math.max(0, raid.currentHp - damage);
       raid.totalStrikes += 1;
 
-      // 1. Notification: Boss down to 50% HP Alert (triggers once per boss level)
+      // 50% HP Notification
       if (raid.currentHp > 0 && raid.currentHp <= Math.floor(raid.maxHp * 0.5) && raid.notified50PercentLevel !== raid.currentLevel) {
         raid.notified50PercentLevel = raid.currentLevel;
         sendWorldAppNotification('boss_50_pct', undefined, { 
           bossName: raid.bossName,
           currentHp: raid.currentHp,
           maxHp: raid.maxHp
-        }).catch((err) => {
-          console.warn('[Notification] Failed to send 50% HP alert:', err);
-        });
+        }).catch((err) => console.warn('[Notification] 50% HP alert error:', err));
       }
 
       // Boss Defeated progression
@@ -353,36 +612,18 @@ export default defineEventHandler(async (event) => {
           raid.maxHp = nextBoss.maxHp;
           raid.currentHp = nextBoss.maxHp;
           raid.bossName = nextBoss.name;
-          raid.notified50PercentLevel = undefined; // Reset 50% flag for the newly spawned boss
-
-          // 2. Notification: New Boss Spawned!
-          sendWorldAppNotification('new_boss', undefined, { 
-            bossName: nextBoss.name 
-          }).catch((err) => {
-            console.warn('[Notification] Failed to send new boss notification:', err);
-          });
+          raid.notified50PercentLevel = undefined;
+          sendWorldAppNotification('new_boss', undefined, { bossName: nextBoss.name }).catch(() => {});
         }
       }
 
-      // Format display name for public raid feed
-      let displayName = playerName;
-      if (!displayName) {
-        if (verifiedNullifierHash) {
-          displayName = `Human #${verifiedNullifierHash.slice(2, 6)}`;
-        } else if (playerId.startsWith('0x')) {
-          displayName = `${playerId.slice(0, 6)}...${playerId.slice(-4)}`;
-        } else {
-          displayName = 'Verified Human';
-        }
-      }
-
-      // Add to Recent Strikes Feed
+      let displayName = playerName || (nullifierHash ? `Human #${nullifierHash.slice(2, 6)}` : 'Verified Human');
       raid.recentStrikes.unshift({
         id: `strike-${now}-${Math.random().toString(36).substring(2, 6)}`,
         playerId,
         playerName: displayName,
-        nullifierHash: verifiedNullifierHash,
-        type,
+        nullifierHash,
+        type: 'free',
         damage,
         tokensEarned,
         weapon,
@@ -392,8 +633,7 @@ export default defineEventHandler(async (event) => {
         raid.recentStrikes.pop();
       }
 
-      // Update Contributor Stats
-      const contributorKey = verifiedNullifierHash ? `human_${verifiedNullifierHash.slice(0, 10)}` : displayName;
+      const contributorKey = nullifierHash ? `human_${nullifierHash.slice(0, 10)}` : displayName;
       const currentStats = raid.contributors[contributorKey] || {
         address: displayName,
         hits: 0,
@@ -407,41 +647,16 @@ export default defineEventHandler(async (event) => {
       currentStats.lastHit = now;
       raid.contributors[contributorKey] = currentStats;
 
-      // Update Player Profile
       player.tokens += tokensEarned;
       player.totalDamageDealt += damage;
       player.totalStrikes += 1;
-
-      // Always increment player's daily claimed tokens for this strike
       player.dailyClaimedTokens = (dailyClaimedTokens || 0) + tokensEarned;
+      (player as any).claimedTokens = ((player as any).claimedTokens || 0) + tokensEarned;
+
       const finalDailyClaimed = player.dailyClaimedTokens;
       const finalDailyRemaining = Math.max(0, MAX_DAILY_CLAIM - finalDailyClaimed);
       const finalLimitReached = (finalDailyClaimed >= MAX_DAILY_CLAIM || finalDailyRemaining < minTokensPerStrike);
 
-      // Target recipient wallet address
-      let voucher: any = null;
-      let onChainPayout: any = null;
-      
-      if (targetAddress && targetAddress.startsWith('0x') && targetAddress.length === 42) {
-        player.address = targetAddress;
-
-        // 1. Attempt direct on-chain payout (Transfers real $DEF immediately to wallet!)
-        const payout = await distributeDefRewardOnChain(targetAddress, tokensEarned);
-        if (payout.success) {
-          onChainPayout = payout;
-          (player as any).claimedTokens = ((player as any).claimedTokens || 0) + tokensEarned;
-          console.log(`[Strike Payout] Direct transfer of ${tokensEarned} $DEF to ${targetAddress} confirmed: ${payout.txHash}`);
-        } else {
-          console.warn(`[Strike Payout] Direct payout not executed (${payout.error}), falling back to EIP-712 voucher.`);
-          // 2. Fallback: generate cryptographic voucher for claim
-          const vResult = await generateClaimVoucher(targetAddress, tokensEarned);
-          if (vResult.success) {
-            voucher = vResult.voucher;
-          }
-        }
-      }
-
-      // Persist global raid state and player profile
       await Promise.all([
         saveRaidState(raid),
         savePlayerProfile(player)
@@ -452,10 +667,8 @@ export default defineEventHandler(async (event) => {
         damage,
         tokensEarned,
         bossDefeated,
-        nullifierHash: verifiedNullifierHash,
-        nextFreeHitTime: type === 'free' ? now + cooldownMs : undefined,
-        voucher,
-        onChainPayout,
+        nullifierHash,
+        nextFreeHitTime: now + cooldownMs,
         raid,
         player: {
           ...player,
