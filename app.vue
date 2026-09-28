@@ -823,11 +823,13 @@ const handleHit = async (type: 'free' | 'power') => {
           // Hit will be confirmed ONLY after user completes on-chain claim.
           freeHitAvailable.value = true;
           pendingVoucher.value = res.voucher;
-          showRewardClaimModal.value = true;
           claimStatusMessage.value = '';
           claimStatusSuccess.value = false;
           if (isInsideWorldApp.value) {
+            // Inside World App: run on-chain claim directly without covering the boss arena
             executeOnChainClaim(res.voucher);
+          } else {
+            showRewardClaimModal.value = true;
           }
         } else if (res.bossDefeated) {
           showToast('🎉 Boss annihilated! Sector advanced!');
@@ -1146,6 +1148,9 @@ const executeOnChainClaim = async (voucher: any) => {
 
       // If this was a free daily strike voucher, lock the cooldown immediately and strike the boss
       if (voucher.isFreeDailyStrike) {
+        // Close modal immediately so boss arena and animations are in full view
+        showRewardClaimModal.value = false;
+
         // ALWAYS immediately lock daily strike locally so user cannot double-claim
         freeHitAvailable.value = false;
         const fallbackCooldownMs = (hasBow.value ? 12 : 24) * 60 * 60 * 1000;
@@ -1156,6 +1161,14 @@ const executeOnChainClaim = async (voucher: any) => {
 
         const dmg = hasSword.value ? 2 : 1;
         const tokens = hasSword.value ? 40 : 20;
+
+        // Immediately update local HP so the player instantly sees the boss take damage!
+        currentHp.value = Math.max(0, currentHp.value - dmg);
+        totalStrikes.value += 1;
+        setPersisted('defeat_ai_cached_hp', String(currentHp.value));
+        setPersisted('defeat_ai_cached_strikes', String(totalStrikes.value));
+
+        // Immediately trigger attack animation, hit flash, shake, and floating damage numbers!
         bossViewRef.value?.playAttackAnimation('free', dmg, tokens);
 
         try {
