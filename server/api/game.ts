@@ -91,12 +91,30 @@ export default defineEventHandler(async (event) => {
 
     const effectiveNullifier = nullifierHash || player.nullifierHash || (walletAddress && walletAddress.startsWith('0x') ? walletAddress : undefined) || (playerId && playerId.startsWith('0x') ? playerId : undefined);
     let humanCooldownRemainingMs = 0;
-    if (effectiveNullifier) {
-      const lastStrike = await getHumanLastStrike(effectiveNullifier);
-      const cooldownHours = player.hasBow ? 12 : 24;
-      const cooldownMs = cooldownHours * 60 * 60 * 1000;
-      const elapsed = Date.now() - lastStrike;
-      if (lastStrike > 0 && elapsed < cooldownMs) {
+    const cooldownHours = player.hasBow ? 12 : 24;
+    const cooldownMs = cooldownHours * 60 * 60 * 1000;
+
+    const candidateKeys = [
+      effectiveNullifier,
+      nullifierHash,
+      player.nullifierHash,
+      walletAddress,
+      player.address,
+      playerId,
+      player.id
+    ].filter(Boolean) as string[];
+
+    let latestStrikeTime = player.lastFreeHitTime || 0;
+    for (const key of candidateKeys) {
+      const strikeTime = await getHumanLastStrike(key);
+      if (strikeTime > latestStrikeTime) {
+        latestStrikeTime = strikeTime;
+      }
+    }
+
+    if (latestStrikeTime > 0) {
+      const elapsed = Date.now() - latestStrikeTime;
+      if (elapsed < cooldownMs) {
         humanCooldownRemainingMs = cooldownMs - elapsed;
       }
     }
@@ -548,21 +566,10 @@ export default defineEventHandler(async (event) => {
         player.dailyClaimResetAt = getNextUtcMidnight();
       }
 
-      const targetAddr = targetAddress || player.address;
-      let onChainClaimed = 0;
-      if (targetAddr) {
-        onChainClaimed = await getOnChainClaimedToday(targetAddr);
-      }
-
-      const dailyClaimedTokens = Math.max(player.dailyClaimedTokens || 0, onChainClaimed);
-      const minTokensPerStrike = player.hasSword ? 80 : 40;
-      const dailyClaimRemaining = Math.max(0, MAX_DAILY_CLAIM - dailyClaimedTokens);
-      const dailyClaimResetAt = player.dailyClaimResetAt || getNextUtcMidnight();
-
       const cooldownHours = (player.hasBow || body?.hasBow) ? 12 : 24;
       const cooldownMs = cooldownHours * 60 * 60 * 1000;
 
-      const trackingKey = nullifierHash || player.nullifierHash || targetAddress || player.id;
+      const trackingKey = nullifierHash || player.nullifierHash || targetAddress || walletAddress || player.id || playerId;
       const lastStrike = await getHumanLastStrike(trackingKey);
       if (lastStrike > 0 && (now - lastStrike < cooldownMs)) {
         const nextTime = lastStrike + cooldownMs;
@@ -576,8 +583,11 @@ export default defineEventHandler(async (event) => {
         };
       }
 
-      // Record cooldown now that claim is confirmed!
+      // Record cooldown immediately across all identifiers
       await recordHumanStrike(trackingKey, now);
+      if (walletAddress && walletAddress.startsWith('0x')) await recordHumanStrike(walletAddress, now);
+      if (player.nullifierHash) await recordHumanStrike(player.nullifierHash, now);
+      if (player.id) await recordHumanStrike(player.id, now);
       player.lastFreeHitTime = now;
 
       const damage = (player.hasSword || body?.hasSword) ? 2 : 1;
@@ -650,11 +660,12 @@ export default defineEventHandler(async (event) => {
       player.tokens += tokensEarned;
       player.totalDamageDealt += damage;
       player.totalStrikes += 1;
-      player.dailyClaimedTokens = (dailyClaimedTokens || 0) + tokensEarned;
+      player.dailyClaimedTokens = (player.dailyClaimedTokens || 0) + tokensEarned;
       (player as any).claimedTokens = ((player as any).claimedTokens || 0) + tokensEarned;
 
       const finalDailyClaimed = player.dailyClaimedTokens;
       const finalDailyRemaining = Math.max(0, MAX_DAILY_CLAIM - finalDailyClaimed);
+      const minTokensPerStrike = player.hasSword ? 80 : 40;
       const finalLimitReached = (finalDailyClaimed >= MAX_DAILY_CLAIM || finalDailyRemaining < minTokensPerStrike);
 
       await Promise.all([
@@ -673,12 +684,12 @@ export default defineEventHandler(async (event) => {
         player: {
           ...player,
           dailyClaimedTokens: finalDailyClaimed,
-          dailyClaimResetAt,
+          dailyClaimResetAt: player.dailyClaimResetAt,
           dailyLimitReached: finalLimitReached,
           dailyClaimRemaining: finalDailyRemaining
         },
         dailyLimitReached: finalLimitReached,
-        dailyClaimResetAt,
+        dailyClaimResetAt: player.dailyClaimResetAt,
         dailyClaimedTokens: finalDailyClaimed,
         dailyClaimRemaining: finalDailyRemaining
       };

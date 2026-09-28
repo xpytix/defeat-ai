@@ -238,10 +238,16 @@ const fetchRaidState = async (isView = false) => {
         nextFreeHitTime.value = expiry;
         setPersisted('defeat_ai_next_free_hit', String(expiry));
       } else {
-        freeHitAvailable.value = true;
-        nextFreeHitTime.value = null;
-        removePersisted('defeat_ai_last_free_hit');
-        removePersisted('defeat_ai_next_free_hit');
+        const localNextHit = getPersisted('defeat_ai_next_free_hit');
+        if (localNextHit && parseInt(localNextHit, 10) > Date.now()) {
+          freeHitAvailable.value = false;
+          nextFreeHitTime.value = parseInt(localNextHit, 10);
+        } else {
+          freeHitAvailable.value = true;
+          nextFreeHitTime.value = null;
+          removePersisted('defeat_ai_last_free_hit');
+          removePersisted('defeat_ai_next_free_hit');
+        }
       }
     }
   } catch (err) {
@@ -1107,16 +1113,51 @@ const executeOnChainClaim = async (voucher: any) => {
     };
 
     const res = await MiniKit.commandsAsync.sendTransaction(txPayload as any);
-    const payload = res?.finalPayload;
+    const payload: any = res?.finalPayload || res;
 
-    if (payload && (payload.status === 'success' || (payload as any).transaction_id)) {
+    // Detect if explicitly cancelled by user
+    const isRejected = (payload?.status === 'error' && payload?.error_code === 'user_rejected') ||
+                       (res?.status === 'error' && (res as any)?.error_code === 'user_rejected');
+
+    // Detect successful on-chain transaction submission in World App
+    const isSuccess = !isRejected && Boolean(
+      (payload && (
+        payload.status === 'success' ||
+        payload.status === 'submitted' ||
+        payload.transaction_status === 'submitted' ||
+        payload.transaction_status === 'success' ||
+        Boolean(payload.transaction_id) ||
+        Boolean(payload.transaction_hash) ||
+        Boolean(payload.hash)
+      )) ||
+      (res && (
+        (res as any).status === 'success' ||
+        (res as any).status === 'submitted' ||
+        Boolean((res as any).transaction_id) ||
+        Boolean((res as any).transaction_hash)
+      ))
+    );
+
+    if (isSuccess) {
       claimStatusSuccess.value = true;
       claimStatusMessage.value = `🎉 Claim confirmed on World Chain! +${voucher.tokenAmount} $DEF in your wallet!`;
       showToast(`🎉 Claim confirmed on-chain! +${voucher.tokenAmount} $DEF in your wallet!`);
-      await fetchOnChainBalance(voucher.recipient);
+      if (voucher.recipient) fetchOnChainBalance(voucher.recipient);
 
-      // If this was a free daily strike voucher, confirm the strike on server now!
+      // If this was a free daily strike voucher, lock the cooldown immediately and strike the boss
       if (voucher.isFreeDailyStrike) {
+        // ALWAYS immediately lock daily strike locally so user cannot double-claim
+        freeHitAvailable.value = false;
+        const fallbackCooldownMs = (hasBow.value ? 12 : 24) * 60 * 60 * 1000;
+        const fallbackExpiry = Date.now() + fallbackCooldownMs;
+        nextFreeHitTime.value = fallbackExpiry;
+        setPersisted('defeat_ai_last_free_hit', Date.now().toString());
+        setPersisted('defeat_ai_next_free_hit', String(fallbackExpiry));
+
+        const dmg = hasSword.value ? 2 : 1;
+        const tokens = hasSword.value ? 40 : 20;
+        bossViewRef.value?.playAttackAnimation('free', dmg, tokens);
+
         try {
           const confirmRes: any = await $fetch('/api/game', {
             method: 'POST',
@@ -1128,16 +1169,16 @@ const executeOnChainClaim = async (voucher: any) => {
               nullifierHash: verifiedNullifier.value || undefined,
               hasSword: hasSword.value,
               hasBow: hasBow.value,
-              txHash: (payload as any).transaction_id || (payload as any).transaction_hash,
+              txHash: payload?.transaction_id || payload?.transaction_hash || (res as any)?.transaction_id || (payload as any)?.hash,
               voucher
             }
           });
 
           if (confirmRes && confirmRes.success) {
-            freeHitAvailable.value = false;
-            nextFreeHitTime.value = confirmRes.nextFreeHitTime;
-            setPersisted('defeat_ai_last_free_hit', Date.now().toString());
-            setPersisted('defeat_ai_next_free_hit', String(confirmRes.nextFreeHitTime));
+            if (confirmRes.nextFreeHitTime) {
+              nextFreeHitTime.value = confirmRes.nextFreeHitTime;
+              setPersisted('defeat_ai_next_free_hit', String(confirmRes.nextFreeHitTime));
+            }
 
             if (confirmRes.raid) {
               currentHp.value = confirmRes.raid.currentHp;
@@ -1156,13 +1197,9 @@ const executeOnChainClaim = async (voucher: any) => {
               unclaimedTokens.value = confirmRes.player.tokens;
               setPersisted('defeat_ai_user_tokens', userTokens.value.toString());
             }
-
-            const dmg = hasSword.value ? 2 : 1;
-            const tokens = hasSword.value ? 40 : 20;
-            bossViewRef.value?.playAttackAnimation('free', dmg, tokens);
           }
         } catch (e: any) {
-          console.warn('[Confirm Free Strike Error]:', e);
+          console.error('[Confirm Free Strike Error]:', e);
         }
       }
 
