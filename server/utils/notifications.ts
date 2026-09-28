@@ -1,4 +1,4 @@
-import { getBlobsStore } from './db';
+import { getBlobsStore, getPlayerProfile, getHumanLastStrike, getRaidState } from './db';
 
 const DEFAULT_DEV_KEY = 'api_a2V5XzA4OTIwOWZiZGE5MDNhZmNlZDY1ZGY2NzRjZDYzNzRjOnNrXzQ3MzE4OTk2NTdlYjA2ODU3Mjc4ZDVhYmYyM2UxOGQzZDNiODRiN2FiNDdlNGZkZA';
 const DEV_PORTAL_API_KEY = process.env.WORLD_DEVELOPER_API_KEY || DEFAULT_DEV_KEY;
@@ -103,17 +103,17 @@ export async function sendWorldAppNotification(
           {
             language: 'en',
             title: 'Daily Strike Ready!',
-            message: 'Your daily strike is ready! Attack the rogue AI boss and claim your $DEF tokens on World Chain.'
+            message: 'Your daily strike is ready! Attack the rogue AI boss and claim your $DEF bounty on World Chain.'
           },
           {
             language: 'pl',
-            title: 'Twój claim jest gotowy!',
-            message: 'Twoje darmowe uderzenie jest już dostępne! Zaatakuj bossa AI i odbierz swoje tokeny $DEF.'
+            title: 'Daily Strike Ready!',
+            message: 'Your daily strike is ready! Attack the rogue AI boss and claim your $DEF bounty on World Chain.'
           },
           {
             language: 'es',
-            title: '¡Golpe diario listo!',
-            message: '¡Tu golpe diario está listo! Ataca al jefe de IA y reclama tus tokens $DEF en World Chain.'
+            title: 'Daily Strike Ready!',
+            message: 'Your daily strike is ready! Attack the rogue AI boss and claim your $DEF bounty on World Chain.'
           }
         ];
         break;
@@ -129,17 +129,17 @@ export async function sendWorldAppNotification(
           },
           {
             language: 'pl',
-            title: 'Nowy boss wylądował!',
+            title: 'New Boss Spawned!',
             message: params?.bossName 
-              ? `Nowy boss AI (${params.bossName}) pojawił się na arenie! Pomóż nam go pokonać.` 
-              : 'Nowy boss AI pojawił się na arenie! Pomóż nam go pokonać.'
+              ? `A new rogue AI boss (${params.bossName}) has appeared in the arena! Join humanity to defeat it.` 
+              : 'A new rogue AI entity has arrived in the arena! Join humanity to defeat it.'
           },
           {
             language: 'es',
-            title: '¡Nuevo jefe ha aparecido!',
+            title: 'New Boss Spawned!',
             message: params?.bossName 
-              ? `¡Un nuevo jefe de IA (${params.bossName}) ha llegado! Únete a la humanidad para vencerlo.` 
-              : '¡Un nuevo jefe de IA ha llegado! Únete a la humanidad para vencerlo.'
+              ? `A new rogue AI boss (${params.bossName}) has appeared in the arena! Join humanity to defeat it.` 
+              : 'A new rogue AI entity has arrived in the arena! Join humanity to defeat it.'
           }
         ];
         break;
@@ -155,17 +155,17 @@ export async function sendWorldAppNotification(
           },
           {
             language: 'pl',
-            title: 'Zostało 50% HP bossa!',
+            title: 'Boss at 50% HP Alert!',
             message: params?.bossName 
-              ? `${params.bossName} ma już tylko 50% życia! Uderz teraz i zgarnij swoje tokeny $DEF, zanim padnie.` 
-              : 'Boss ma już tylko 50% życia! Uderz teraz i zgarnij swoje tokeny $DEF, zanim padnie.'
+              ? `${params.bossName} is down to 50% HP! Strike now to deal heavy damage and secure your $DEF bounty before it falls.` 
+              : 'The rogue AI boss is down to 50% HP! Strike now to claim your $DEF bounty before it falls.'
           },
           {
             language: 'es',
-            title: '¡Jefe al 50% de vida!',
+            title: 'Boss at 50% HP Alert!',
             message: params?.bossName 
-              ? `¡${params.bossName} tiene solo el 50% de vida! Ataca ahora para asegurar tus tokens $DEF.` 
-              : '¡El jefe tiene solo el 50% de vida! Ataca ahora para asegurar tus tokens $DEF.'
+              ? `${params.bossName} is down to 50% HP! Strike now to deal heavy damage and secure your $DEF bounty before it falls.` 
+              : 'The rogue AI boss is down to 50% HP! Strike now to claim your $DEF bounty before it falls.'
           }
         ];
         break;
@@ -208,3 +208,75 @@ export async function sendWorldAppNotification(
     };
   }
 }
+
+export async function checkAndSendDailyNotifications(): Promise<{
+  checked: number;
+  notified: number;
+  details: any[];
+}> {
+  const subscribers = await getSubscribedWallets();
+  const now = Date.now();
+  const store = getBlobsStore();
+  const results: any[] = [];
+  let notifiedCount = 0;
+
+  for (const wallet of subscribers) {
+    try {
+      const player = await getPlayerProfile(wallet, undefined, wallet);
+      const cooldownHours = player.hasBow ? 12 : 24;
+      const cooldownMs = cooldownHours * 60 * 60 * 1000;
+
+      // Determine latest strike time across player profile and nullifier/wallet storage
+      const humanStrikeTime = await getHumanLastStrike(wallet);
+      const lastStrike = Math.max(player.lastFreeHitTime || 0, humanStrikeTime || 0);
+
+      // Has cooldown elapsed? (If lastStrike is 0, player has never struck or cooldown was reset)
+      const isCooldownElapsed = lastStrike === 0 || (now - lastStrike >= cooldownMs);
+
+      // Read last notified timestamp for this wallet
+      let lastNotifiedAt = 0;
+      if (store) {
+        try {
+          const record = await store.get(`notif_sent_${wallet.toLowerCase()}`, { type: 'json' }) as { lastNotifiedAt: number } | null;
+          if (record?.lastNotifiedAt) {
+            lastNotifiedAt = record.lastNotifiedAt;
+          }
+        } catch (e) {}
+      }
+
+      // We notify if:
+      // 1. Cooldown has elapsed AND
+      // 2. We haven't notified since the last strike (or if it's been > 24h since the last notification)
+      const needsNotification = isCooldownElapsed && (
+        lastNotifiedAt < lastStrike ||
+        (now - lastNotifiedAt >= 24 * 60 * 60 * 1000)
+      );
+
+      if (needsNotification) {
+        const sendRes = await sendWorldAppNotification('daily_ready', [wallet]);
+        if (sendRes.success) {
+          notifiedCount++;
+          if (store) {
+            try {
+              await store.setJSON(`notif_sent_${wallet.toLowerCase()}`, { lastNotifiedAt: now });
+            } catch (e) {}
+          }
+          results.push({ wallet, status: 'sent', result: sendRes.result });
+        } else {
+          results.push({ wallet, status: 'failed', error: sendRes.error });
+        }
+      } else {
+        results.push({ wallet, status: 'skipped', isCooldownElapsed, lastStrike, lastNotifiedAt });
+      }
+    } catch (err: any) {
+      results.push({ wallet, status: 'error', error: err.message });
+    }
+  }
+
+  return {
+    checked: subscribers.length,
+    notified: notifiedCount,
+    details: results
+  };
+}
+
