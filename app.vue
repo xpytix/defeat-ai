@@ -224,6 +224,14 @@ const fetchRaidState = async (isView = false) => {
         accumulatedStakeYield.value = res.player.accumulatedStakeYield;
       }
 
+      // Check if global cooldown was reset on the server after player's last local strike
+      const localLastHit = parseInt(getPersisted('defeat_ai_last_free_hit') || '0', 10);
+      const serverResetAt = res.raid?.cooldownResetAt || 0;
+      if (serverResetAt > 0 && serverResetAt > localLastHit) {
+        removePersisted('defeat_ai_last_free_hit');
+        removePersisted('defeat_ai_next_free_hit');
+      }
+
       // Handle server-enforced cooldown based on nullifier hash & player state
       if (res.humanCooldownRemainingMs && res.humanCooldownRemainingMs > 0) {
         freeHitAvailable.value = false;
